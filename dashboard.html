@@ -64,14 +64,75 @@
         </select>
       </div>
 
+      <!-- SITUATION MARITALE -->
       <div>
-        <label class="block text-sm font-medium mb-1">Statut matrimonial</label>
+        <label class="block text-sm font-medium mb-1">Situation maritale</label>
         <select id="marital_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
           <option value="">— Choisir —</option>
           <option value="celibataire">Célibataire</option>
           <option value="divorce">Divorcé(e)</option>
           <option value="veuf">Veuf(ve)</option>
+          <option value="marie">Marié(e) — ouvert(e) à la polygamie</option>
         </select>
+      </div>
+
+      <!-- ENFANTS -->
+      <div class="border-t pt-3">
+        <label class="block text-sm font-medium mb-1">Enfants</label>
+        <select id="has_children" onchange="toggleChildren()"
+                class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+          <option value="false">N'a pas d'enfants</option>
+          <option value="true">A des enfants</option>
+        </select>
+        <div id="childrenCountDiv" class="hidden mt-2">
+          <label class="block text-sm font-medium mb-1">Nombre d'enfants</label>
+          <input type="number" id="children_count" min="1" max="15" value="1"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        </div>
+      </div>
+
+      <!-- CADRE DE VIE -->
+      <div>
+        <label class="block text-sm font-medium mb-1">Cadre de vie</label>
+        <select id="living_situation" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+          <option value="">— Choisir —</option>
+          <option value="seul">Vit seul(e)</option>
+          <option value="famille">Vit en famille / chez les parents</option>
+        </select>
+      </div>
+
+      <!-- SITUATION SOCIO-ÉCONOMIQUE -->
+      <div class="border-t pt-3 space-y-3">
+        <h3 class="font-semibold text-slate-700 text-sm">Situation socio-économique</h3>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Profession</label>
+          <input type="text" id="profession" placeholder="Ex: Ingénieur, Enseignant…"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Tranche de revenus annuels (optionnel)</label>
+          <select id="income_range" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+            <option value="">— Préfère ne pas dire —</option>
+            <option value="< 500 000 FCFA">Moins de 500 000 FCFA</option>
+            <option value="500 000 - 1 500 000 FCFA">500 000 – 1 500 000 FCFA</option>
+            <option value="1 500 000 - 3 000 000 FCFA">1 500 000 – 3 000 000 FCFA</option>
+            <option value="> 3 000 000 FCFA">Plus de 3 000 000 FCFA</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1">Niveau d'études</label>
+          <select id="education_level" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+            <option value="">— Choisir —</option>
+            <option value="Baccalauréat">Baccalauréat</option>
+            <option value="Licence">Licence</option>
+            <option value="Master">Master</option>
+            <option value="Doctorat">Doctorat</option>
+            <option value="Formation professionnelle">Formation professionnelle</option>
+          </select>
+        </div>
       </div>
 
       <div>
@@ -101,6 +162,11 @@
       msg.classList.remove('hidden');
     }
 
+    function toggleChildren() {
+      const v = document.getElementById('has_children').value === 'true';
+      document.getElementById('childrenCountDiv').classList.toggle('hidden', !v);
+    }
+
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
@@ -121,7 +187,16 @@
         document.getElementById('city').value = p.city || '';
         document.getElementById('religiosity_level').value = p.religiosity_level || '';
         document.getElementById('marital_status').value = p.marital_status || '';
+        document.getElementById('living_situation').value = p.living_situation || '';
+        document.getElementById('profession').value = p.profession || '';
+        document.getElementById('income_range').value = p.income_range || '';
+        document.getElementById('education_level').value = p.education_level || '';
         document.getElementById('bio').value = p.bio || '';
+        document.getElementById('has_children').value = p.has_children ? 'true' : 'false';
+        if (p.has_children) {
+          document.getElementById('children_count').value = p.children_count || 1;
+        }
+        toggleChildren();
         document.getElementById('welcome').textContent = 'Bienvenue ' + (p.username || user.email);
       } else {
         document.getElementById('welcome').textContent = 'Complète ton profil ci-dessous.';
@@ -132,6 +207,8 @@
       e.preventDefault();
       if (!currentUser) return;
 
+      const hasChildren = document.getElementById('has_children').value === 'true';
+
       const data = {
         id: currentUser.id,
         username: document.getElementById('username').value.trim(),
@@ -141,6 +218,12 @@
         city: document.getElementById('city').value.trim() || null,
         religiosity_level: document.getElementById('religiosity_level').value || null,
         marital_status: document.getElementById('marital_status').value || null,
+        living_situation: document.getElementById('living_situation').value || null,
+        profession: document.getElementById('profession').value.trim() || null,
+        income_range: document.getElementById('income_range').value || null,
+        education_level: document.getElementById('education_level').value || null,
+        has_children: hasChildren,
+        children_count: hasChildren ? parseInt(document.getElementById('children_count').value) || 0 : 0,
         bio: document.getElementById('bio').value.trim() || null
       };
 
