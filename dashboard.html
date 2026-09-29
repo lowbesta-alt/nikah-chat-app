@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mon profil — InshaAllah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-emerald-50 min-h-screen">
+  <header class="bg-white shadow-sm">
+    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2 font-bold text-emerald-700">
+        <span class="text-xl">🌙</span><span>InshaAllah</span>
+      </div>
+      <nav class="flex items-center gap-4 text-sm">
+        <a href="search.html" class="text-slate-600 hover:text-emerald-700">Rechercher</a>
+        <a href="chat.html" class="text-slate-600 hover:text-emerald-700">Messages</a>
+        <button onclick="logout()" class="text-red-600 hover:underline">Déconnexion</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto p-4">
+    <h1 class="text-xl font-bold text-slate-800 mb-1">Salam aleykoum 👋</h1>
+    <p class="text-sm text-slate-500 mb-6" id="welcome">Chargement…</p>
+
+    <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
+      <h2 class="font-bold text-lg">Mon profil</h2>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Pseudo</label>
+        <input type="text" id="username" required
+               class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Date de naissance</label>
+        <input type="date" id="birth_date"
+               class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium mb-1">Pays</label>
+          <input type="text" id="country" placeholder="Cameroun"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Ville</label>
+          <input type="text" id="city" placeholder="Douala"
+                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Niveau de pratique</label>
+        <select id="religiosity_level" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+          <option value="">— Choisir —</option>
+          <option value="modere">Modéré</option>
+          <option value="pratiquant">Pratiquant</option>
+          <option value="tres_pratiquant">Très pratiquant</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Statut matrimonial</label>
+        <select id="marital_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+          <option value="">— Choisir —</option>
+          <option value="celibataire">Célibataire</option>
+          <option value="divorce">Divorcé(e)</option>
+          <option value="veuf">Veuf(ve)</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Bio</label>
+        <textarea id="bio" rows="3" placeholder="Parlez de vous…"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none"></textarea>
+      </div>
+
+      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">
+        Enregistrer mon profil
+      </button>
+    </form>
+
+    <div id="message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+  </main>
+
+  <script>
+    const msg = document.getElementById('message');
+    let currentUser = null;
+
+    function show(t, c) {
+      msg.textContent = t;
+      msg.className = 'mt-4 p-3 rounded-lg text-sm ' + (c === 'ok'
+        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        : 'bg-red-50 text-red-700 border border-red-200');
+      msg.classList.remove('hidden');
+    }
+
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    }
+
+    (async () => {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = 'login.html'; return; }
+      currentUser = user;
+
+      const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
+
+      if (p) {
+        document.getElementById('username').value = p.username || '';
+        document.getElementById('birth_date').value = p.birth_date || '';
+        document.getElementById('country').value = p.country || '';
+        document.getElementById('city').value = p.city || '';
+        document.getElementById('religiosity_level').value = p.religiosity_level || '';
+        document.getElementById('marital_status').value = p.marital_status || '';
+        document.getElementById('bio').value = p.bio || '';
+        document.getElementById('welcome').textContent = 'Bienvenue ' + (p.username || user.email);
+      } else {
+        document.getElementById('welcome').textContent = 'Complète ton profil ci-dessous.';
+      }
+    })();
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentUser) return;
+
+      const data = {
+        id: currentUser.id,
+        username: document.getElementById('username').value.trim(),
+        birth_date: document.getElementById('birth_date').value || null,
+        country: document.getElementById('country').value.trim() || null,
+        city: document.getElementById('city').value.trim() || null,
+        religiosity_level: document.getElementById('religiosity_level').value || null,
+        marital_status: document.getElementById('marital_status').value || null,
+        bio: document.getElementById('bio').value.trim() || null
+      };
+
+      const { error } = await supabaseClient.from('profiles').upsert(data, { onConflict: 'id' });
+
+      if (error) show('❌ ' + error.message, 'err');
+      else show('✅ Profil enregistré !', 'ok');
+    });
+  </script>
+</body>
+</html>
