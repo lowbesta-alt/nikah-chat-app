@@ -25,25 +25,60 @@
   <main class="max-w-4xl mx-auto p-4">
     <h1 class="text-xl font-bold mb-4">Rechercher des profils</h1>
 
-    <form id="searchForm" class="bg-white rounded-2xl shadow p-4 mb-6 grid grid-cols-2 gap-3">
-      <select id="filter_gender" class="px-3 py-2 border rounded-lg bg-white">
-        <option value="">Genre</option>
-        <option value="male">Homme</option>
-        <option value="female">Femme</option>
-      </select>
-      <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
-      <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
-      <select id="filter_religiosity" class="px-3 py-2 border rounded-lg bg-white">
-        <option value="">Pratique</option>
-        <option value="modere">Modéré</option>
-        <option value="pratiquant">Pratiquant</option>
-        <option value="tres_pratiquant">Très pratiquant</option>
-      </select>
-      <button type="submit" class="col-span-2 bg-emerald-600 text-white py-2 rounded-lg font-semibold">
-        Rechercher
+    <form id="searchForm" class="bg-white rounded-2xl shadow p-4 mb-6 space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <select id="filter_gender" class="px-3 py-2 border rounded-lg bg-white">
+          <option value="">Genre</option>
+          <option value="male">Homme</option>
+          <option value="female">Femme</option>
+        </select>
+        <select id="filter_religiosity" class="px-3 py-2 border rounded-lg bg-white">
+          <option value="">Pratique</option>
+          <option value="modere">Modéré</option>
+          <option value="pratiquant">Pratiquant</option>
+          <option value="tres_pratiquant">Très pratiquant</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
+        <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Âge min</label>
+          <input type="number" id="filter_age_min" placeholder="18" min="18" max="99"
+                 class="w-full px-3 py-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Âge max</label>
+          <input type="number" id="filter_age_max" placeholder="99" min="18" max="99"
+                 class="w-full px-3 py-2 border rounded-lg">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <select id="filter_marital" class="px-3 py-2 border rounded-lg bg-white">
+          <option value="">Situation maritale</option>
+          <option value="celibataire">Célibataire</option>
+          <option value="divorce">Divorcé(e)</option>
+          <option value="veuf">Veuf(ve)</option>
+          <option value="marie">Marié(e) (polygamie)</option>
+        </select>
+        <select id="filter_children" class="px-3 py-2 border rounded-lg bg-white">
+          <option value="">Enfants</option>
+          <option value="no">N'a pas d'enfants</option>
+          <option value="yes">A des enfants</option>
+        </select>
+      </div>
+
+      <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold">
+        🔍 Rechercher
       </button>
     </form>
 
+    <p id="resultsInfo" class="text-sm text-slate-500 mb-3 hidden"></p>
     <div id="results" class="space-y-3"></div>
   </main>
 
@@ -53,36 +88,96 @@
       window.location.href = 'index.html';
     }
 
+    function calcAge(birthDate) {
+      if (!birthDate) return null;
+      const b = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - b.getFullYear();
+      const m = today.getMonth() - b.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+      return age;
+    }
+
+    function avatarHtml(p) {
+      if (p.avatar_url) {
+        return `<img src="${p.avatar_url}" alt="" class="w-14 h-14 rounded-full object-cover" onerror="this.replaceWith(document.createTextNode('${(p.username||'?').charAt(0).toUpperCase()}'))">`;
+      }
+      return `<div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-lg">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
+    }
+
+    const maritalLabels = { celibataire: 'Célibataire', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)', marie: 'Marié(e)' };
+    const religiosityLabels = { modere: 'Modéré', pratiquant: 'Pratiquant', tres_pratiquant: 'Très pratiquant' };
+
     async function search(filters = {}) {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
+
+      const results = document.getElementById('results');
+      const info = document.getElementById('resultsInfo');
+      results.innerHTML = '<p class="text-center text-slate-400 py-6">Recherche…</p>';
 
       let q = supabaseClient.from('profiles').select('*').neq('id', user.id);
       if (filters.gender) q = q.eq('gender', filters.gender);
       if (filters.country) q = q.ilike('country', '%' + filters.country + '%');
       if (filters.city) q = q.ilike('city', '%' + filters.city + '%');
       if (filters.religiosity) q = q.eq('religiosity_level', filters.religiosity);
+      if (filters.marital) q = q.eq('marital_status', filters.marital);
+      if (filters.children === 'no') q = q.eq('has_children', false);
+      if (filters.children === 'yes') q = q.eq('has_children', true);
 
-      const { data, error } = await q.limit(30);
-      const results = document.getElementById('results');
+      if (filters.ageMin) {
+        const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMin);
+        q = q.lte('birth_date', d.toISOString().split('T')[0]);
+      }
+      if (filters.ageMax) {
+        const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMax - 1);
+        q = q.gte('birth_date', d.toISOString().split('T')[0]);
+      }
 
-      if (error) { results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>'; return; }
-      if (!data.length) { results.innerHTML = '<p class="text-slate-500 text-center">Aucun profil trouvé.</p>'; return; }
+      const { data, error } = await q.order('last_seen_at', { ascending: false, nullsFirst: false }).limit(50);
 
-      results.innerHTML = data.map(p => `
-        <div class="bg-white rounded-xl shadow p-4 flex items-center justify-between">
-          <div>
-            <p class="font-semibold">${p.username || 'Anonyme'}</p>
-            <p class="text-sm text-slate-500">
-              ${p.city || ''}${p.city && p.country ? ', ' : ''}${p.country || ''}
-              ${p.religiosity_level ? ' · ' + p.religiosity_level : ''}
-            </p>
+      if (error) {
+        results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>';
+        return;
+      }
+
+      if (!data.length) {
+        info.classList.add('hidden');
+        results.innerHTML = '<p class="text-slate-500 text-center py-10">Aucun profil trouvé.</p>';
+        return;
+      }
+
+      info.textContent = data.length + ' profil(s) trouvé(s)';
+      info.classList.remove('hidden');
+
+      results.innerHTML = data.map(p => {
+        const age = calcAge(p.birth_date);
+        const tags = [];
+        if (p.marital_status) tags.push(maritalLabels[p.marital_status] || p.marital_status);
+        if (p.religiosity_level) tags.push(religiosityLabels[p.religiosity_level] || p.religiosity_level);
+        if (p.has_children) tags.push('👶 ' + (p.children_count || 1));
+        if (p.profession) tags.push('💼 ' + p.profession);
+
+        return `
+          <div class="bg-white rounded-xl shadow p-4">
+            <div class="flex items-start gap-3">
+              ${avatarHtml(p)}
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold truncate">${p.username || 'Anonyme'}${age ? ' · ' + age + ' ans' : ''}</p>
+                <p class="text-sm text-slate-500 truncate">
+                  ${p.city || ''}${p.city && p.country ? ', ' : ''}${p.country || ''}
+                </p>
+                <div class="flex flex-wrap gap-1 mt-2">
+                  ${tags.map(t => `<span class="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">${t}</span>`).join('')}
+                </div>
+              </div>
+            </div>
+            <a href="chat-room.html?user=${p.id}" class="mt-3 block w-full text-center bg-emerald-600 text-white text-sm py-2 rounded-lg">
+              💬 Discuter
+            </a>
           </div>
-          <a href="chat.html?user=${p.id}" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg">
-            Discuter
-          </a>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     document.getElementById('searchForm').addEventListener('submit', (e) => {
@@ -91,11 +186,14 @@
         gender: document.getElementById('filter_gender').value,
         country: document.getElementById('filter_country').value.trim(),
         city: document.getElementById('filter_city').value.trim(),
-        religiosity: document.getElementById('filter_religiosity').value
+        religiosity: document.getElementById('filter_religiosity').value,
+        marital: document.getElementById('filter_marital').value,
+        children: document.getElementById('filter_children').value,
+        ageMin: parseInt(document.getElementById('filter_age_min').value) || null,
+        ageMax: parseInt(document.getElementById('filter_age_max').value) || null
       });
     });
 
-    // Chargement initial
     search();
   </script>
 </body>
