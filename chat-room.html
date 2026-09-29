@@ -9,7 +9,7 @@
   <script src="config.js"></script>
   <style>
     html, body { height: 100%; overscroll-behavior: none; }
-    body { height: 100dvh; } /* Dynamic viewport height — meilleur pour Android */
+    body { height: 100dvh; }
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
     .safe-top { padding-top: env(safe-area-inset-top, 0); }
   </style>
@@ -52,17 +52,16 @@
     </div>
   </footer>
 
-  <!-- MENU de suppression (bottom sheet) -->
-  <div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end">
+  <div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end">
     <div class="w-full bg-white rounded-t-2xl p-4 safe-bottom">
-      <p class="text-xs text-slate-500 text-center mb-3">Que faire de ce message ?</p>
-      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium">
+      <p class="text-sm text-slate-600 text-center mb-3 font-medium">Que faire de ce message ?</p>
+      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium active:bg-slate-200">
         🗑️ Supprimer pour moi
       </button>
-      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium">
+      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium active:bg-red-100">
         🗑️ Supprimer pour tout le monde
       </button>
-      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm">
+      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm active:bg-slate-100">
         Annuler
       </button>
     </div>
@@ -79,8 +78,6 @@
     let selectedMsg = null;
 
     const displayedIds = new Set();
-
-    // Set des messages supprimés POUR MOI (localStorage par utilisateur)
     let deletedForMe = new Set();
 
     const params = new URLSearchParams(window.location.search);
@@ -143,21 +140,26 @@
         content = url ? `<audio controls src="${url}" class="max-w-full" style="width:220px"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
       }
 
+      // Bouton ⋮ visible dans chaque bulle
+      const menuBtn = `<button onclick="event.stopPropagation(); openMenu('${m.id}', ${mine});"
+                              class="absolute top-1 ${mine ? 'left-1' : 'right-1'} w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center leading-none">⋮</button>`;
+
       const html = `
         <div class="flex ${mine ? 'justify-end' : 'justify-start'}" data-msg-id="${m.id}">
-          <div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm cursor-pointer ${mine
+          <div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm ${mine
             ? 'bg-emerald-600 text-white rounded-br-md'
-            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}"
-            onclick="openMenu('${m.id}', ${mine})">
-            ${content}
-            <p class="text-[10px] mt-1 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</p>
+            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}">
+            ${menuBtn}
+            <div class="pr-5 pl-1">
+              ${content}
+              <p class="text-[10px] mt-1 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</p>
+            </div>
           </div>
         </div>`;
       document.getElementById('messages').insertAdjacentHTML('beforeend', html);
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
 
-    // ---- MENU DE SUPPRESSION ----
     function openMenu(msgId, mine) {
       selectedMsg = msgId;
       document.getElementById('msgMenu').classList.remove('hidden');
@@ -175,11 +177,10 @@
       if (!selectedMsg) return;
       deletedForMe.add(selectedMsg);
       saveDeletedForMe();
-      // Retirer visuellement
       const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
       if (el) el.remove();
       closeMenu();
-      setStatus('🗑️ Message supprimé pour vous', 'ok');
+      setStatus('🗑️ Supprimé pour vous', 'ok');
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
     }
 
@@ -196,7 +197,7 @@
       const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
       if (el) el.remove();
       closeMenu();
-      setStatus('🗑️ Message supprimé pour tout le monde', 'ok');
+      setStatus('🗑️ Supprimé pour tout le monde', 'ok');
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
     }
 
@@ -261,7 +262,6 @@
           refreshQuota();
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
-          // Suppression reçue d'un autre utilisateur
           const el = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
           if (el) el.remove();
         })
