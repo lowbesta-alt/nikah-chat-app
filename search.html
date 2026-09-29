@@ -100,9 +100,9 @@
 
     function avatarHtml(p) {
       if (p.avatar_url) {
-        return `<img src="${p.avatar_url}" alt="" class="w-14 h-14 rounded-full object-cover" onerror="this.replaceWith(document.createTextNode('${(p.username||'?').charAt(0).toUpperCase()}'))">`;
+        return `<img src="${p.avatar_url}" alt="" class="w-14 h-14 rounded-full object-cover shrink-0">`;
       }
-      return `<div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-lg">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
+      return `<div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-lg shrink-0">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
     }
 
     const maritalLabels = { celibataire: 'Célibataire', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)', marie: 'Marié(e)' };
@@ -153,6 +153,12 @@
       results.innerHTML = data.map(p => {
         const age = calcAge(p.birth_date);
         const tags = [];
+
+        // 🧕 Badge voile
+        if (p.veil_type === 'hijab') tags.push('🧕 Hijab');
+        if (p.veil_type === 'niqab') tags.push('🖤 Niqab');
+
+        // Autres badges
         if (p.marital_status) tags.push(maritalLabels[p.marital_status] || p.marital_status);
         if (p.religiosity_level) tags.push(religiosityLabels[p.religiosity_level] || p.religiosity_level);
         if (p.has_children) tags.push('👶 ' + (p.children_count || 1));
