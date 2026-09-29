@@ -13,40 +13,80 @@
     <div class="text-center mb-8">
       <div class="text-4xl mb-2">🌙</div>
       <h1 class="text-2xl font-bold text-emerald-700">Créer un compte</h1>
+      <p class="text-sm text-slate-500 mt-1">Rejoignez la communauté InshaAllah</p>
     </div>
 
     <form id="signupForm" class="space-y-4">
-      <input type="text" id="username" placeholder="Pseudo" required minlength="3"
-             class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none">
-      <input type="email" id="email" placeholder="Email" required
-             class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none">
-      <input type="password" id="password" placeholder="Mot de passe (6 min)" required minlength="6"
-             class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none">
-      <select id="gender" required class="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white">
-        <option value="">— Genre —</option>
-        <option value="male">Homme</option>
-        <option value="female">Femme</option>
-      </select>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Pseudo</label>
+        <input type="text" id="username" required minlength="3"
+               class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+               placeholder="Ex: Abdoulaye92">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+        <input type="email" id="email" required
+               class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+               placeholder="vous@exemple.com">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+        <div class="relative">
+          <input type="password" id="password" required minlength="6"
+                 class="w-full px-4 py-3 pr-12 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                 placeholder="Minimum 6 caractères">
+          <button type="button" onclick="togglePassword('password', this)"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 text-xl">
+            👁️
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Genre</label>
+        <select id="gender" required
+                class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+          <option value="">— Choisir —</option>
+          <option value="male">Homme</option>
+          <option value="female">Femme</option>
+        </select>
+      </div>
+
       <button type="submit" id="btnSubmit"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl disabled:opacity-50">
         Créer mon compte
       </button>
     </form>
 
     <div id="message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+
     <p class="text-center text-sm text-slate-500 mt-6">
-      Déjà un compte ? <a href="login.html" class="text-emerald-600 hover:underline">Se connecter</a>
+      Déjà un compte ?
+      <a href="login.html" class="text-emerald-600 font-medium hover:underline">Se connecter</a>
     </p>
   </div>
 
   <script>
     const msg = document.getElementById('message');
-    function show(t, c) {
+    function showMessage(t, c) {
       msg.textContent = t;
       msg.className = 'mt-4 p-3 rounded-lg text-sm ' + (c === 'ok'
         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         : 'bg-red-50 text-red-700 border border-red-200');
       msg.classList.remove('hidden');
+    }
+
+    function togglePassword(id, btn) {
+      const input = document.getElementById(id);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
     }
 
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
@@ -64,7 +104,7 @@
       });
 
       if (error) {
-        show('❌ ' + error.message, 'err');
+        showMessage('❌ ' + error.message, 'err');
         btn.disabled = false; btn.textContent = 'Créer mon compte';
         return;
       }
@@ -75,7 +115,7 @@
         });
       }
 
-      show('✅ Compte créé ! Redirection…', 'ok');
+      showMessage('✅ Compte créé ! Redirection vers ton profil…', 'ok');
       setTimeout(() => window.location.href = 'dashboard.html', 1500);
     });
   </script>
