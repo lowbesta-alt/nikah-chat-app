@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conversation — InshaAllah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col">
+
+  <header class="bg-white shadow-sm shrink-0">
+    <div class="max-w-3xl mx-auto flex items-center gap-3 px-4 py-3">
+      <a href="chat.html" class="text-emerald-700 font-bold text-xl">←</a>
+      <div class="flex-1">
+        <p class="font-semibold text-slate-800" id="otherName">Chargement…</p>
+        <p class="text-xs text-slate-500" id="otherInfo"></p>
+      </div>
+      <span id="quota" class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700"></span>
+    </div>
+  </header>
+
+  <main id="messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 max-w-3xl w-full mx-auto">
+    <p class="text-center text-slate-400 text-sm mt-10" id="loading">Chargement…</p>
+  </main>
+
+  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center">
+    <p class="text-sm text-amber-800 font-medium mb-2">
+      🔓 Vous avez utilisé vos 10 messages gratuits.
+    </p>
+    <p class="text-xs text-amber-700 mb-3">
+      Pour continuer cette discussion en illimité, débloquez pour 600 FCFA / 1$.
+    </p>
+    <button onclick="alert('Le paiement arrive bientôt. InshaAllah.')"
+            class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-semibold">
+      Débloquer maintenant
+    </button>
+  </div>
+
+  <footer id="composer" class="bg-white border-t shrink-0">
+    <div class="max-w-3xl mx-auto flex items-center gap-2 p-3">
+      <input type="text" id="input" placeholder="Écrivez votre message…"
+             class="flex-1 px-4 py-3 border border-slate-300 rounded-full outline-none focus:border-emerald-500">
+      <button id="sendBtn" onclick="sendMessage()"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white w-12 h-12 rounded-full font-bold text-lg">
+        ➤
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    let currentUser = null;
+    let conversationId = null;
+    let otherUserId = null;
+    let channel = null;
+
+    // ---- Récupérer l'ID de l'autre utilisateur depuis l'URL ----
+    const params = new URLSearchParams(window.location.search);
+    otherUserId = params.get('user');
+
+    function escapeHtml(s) {
+      return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function renderMessage(m) {
+      const mine = m.sender_id === currentUser.id;
+      const time = new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const html = `
+        <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm ${mine
+            ? 'bg-emerald-600 text-white rounded-br-md'
+            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}">
+            <p class="whitespace-pre-wrap break-words">${escapeHtml(m.text_body)}</p>
+            <p class="text-[10px] mt-1 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</p>
+          </div>
+        </div>`;
+      document.getElementById('messages').insertAdjacentHTML('beforeend', html);
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    async function init() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = 'login.html'; return; }
+      currentUser = user;
+
+      if (!otherUserId) {
+        document.getElementById('messages').innerHTML = '<p class="text-center text-red-500">Utilisateur non précisé.</p>';
+        return;
+      }
+
+      // Infos de l'autre utilisateur
+      const { data: other } = await supabaseClient.from('profiles')
+        .select('username, city, country')
+        .eq('id', otherUserId).single();
+      if (other) {
+        document.getElementById('otherName').textContent = other.username || 'Utilisateur';
+        document.getElementById('otherInfo').textContent =
+          (other.city || '') + (other.city && other.country ? ', ' : '') + (other.country || '');
+      }
+
+      // Créer/récupérer la conversation
+      const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', {
+        p_other_user: otherUserId
+      });
+
+      if (rpcErr) {
+        document.getElementById('messages').innerHTML = '<p class="text-center text-red-500">Erreur : ' + rpcErr.message + '</p>';
+        return;
+      }
+      conversationId = convId;
+
+      // Charger les messages existants
+      const { data: msgs } = await supabaseClient.from('messages')
+        .select('*').eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true }).limit(200);
+
+      document.getElementById('messages').innerHTML = '';
+      if (!msgs || !msgs.length) {
+        document.getElementById('messages').innerHTML =
+          '<p class="text-center text-slate-400 text-sm py-6">Salam aleykoum 👋<br>Commencez par un message courtois.</p>';
+      } else {
+        msgs.forEach(renderMessage);
+      }
+
+      // Charger le compteur
+      await refreshQuota();
+
+      // S'abonner au Realtime
+      channel = supabaseClient.channel('conv:' + conversationId)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'messages',
+          filter: 'conversation_id=eq.' + conversationId
+        }, (payload) => {
+          // Supprimer le message "vide"
+          const emptyMsg = document.querySelector('#messages > p.text-center');
+          if (emptyMsg) emptyMsg.remove();
+          renderMessage(payload.new);
+          refreshQuota();
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'conversations',
+          filter: 'id=eq.' + conversationId
+        }, (payload) => {
+          updateQuotaUI(payload.new);
+        })
+        .subscribe();
+    }
+
+    async function refreshQuota() {
+      const { data: conv } = await supabaseClient.from('conversations')
+        .select('message_count, is_unlocked').eq('id', conversationId).single();
+      if (conv) updateQuotaUI(conv);
+    }
+
+    function updateQuotaUI(conv) {
+      const locked = !conv.is_unlocked && conv.message_count >= 10;
+      const q = document.getElementById('quota');
+
+      if (conv.is_unlocked) {
+        q.textContent = 'Illimité ✓';
+        q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700';
+        document.getElementById('paywall').classList.add('hidden');
+        document.getElementById('composer').classList.remove('hidden');
+      } else if (locked) {
+        q.textContent = '10/10';
+        q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700';
+        document.getElementById('paywall').classList.remove('hidden');
+        document.getElementById('composer').classList.add('hidden');
+      } else {
+        const remain = 10 - conv.message_count;
+        q.textContent = remain + ' msg offert' + (remain > 1 ? 's' : '');
+        q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700';
+        document.getElementById('paywall').classList.add('hidden');
+        document.getElementById('composer').classList.remove('hidden');
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.disabled = true;
+      input.value = '';
+
+      const { error } = await supabaseClient.from('messages').insert({
+        conversation_id: conversationId,
+        sender_id: currentUser.id,
+        content_type: 'text',
+        text_body: text
+      });
+
+      input.disabled = false;
+      input.focus();
+
+      if (error) {
+        if (error.message.includes('QUOTA_REACHED')) {
+          document.getElementById('paywall').classList.remove('hidden');
+          document.getElementById('composer').classList.add('hidden');
+        } else {
+          alert('Erreur : ' + error.message);
+        }
+      }
+    }
+
+    document.getElementById('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    init();
+  </script>
+</body>
+</html>
