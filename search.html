@@ -41,24 +41,12 @@
       </div>
 
       <div class="grid grid-cols-2 gap-3">
-        <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
-        <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs text-slate-500 mb-1">Âge min</label>
-          <input type="number" id="filter_age_min" placeholder="18" min="18" max="99"
-                 class="w-full px-3 py-2 border rounded-lg">
-        </div>
-        <div>
-          <label class="block text-xs text-slate-500 mb-1">Âge max</label>
-          <input type="number" id="filter_age_max" placeholder="99" min="18" max="99"
-                 class="w-full px-3 py-2 border rounded-lg">
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
+        <select id="filter_veil" class="px-3 py-2 border rounded-lg bg-white">
+          <option value="">Tenue (femmes)</option>
+          <option value="hijab">🧕 Hijab</option>
+          <option value="niqab">🖤 Niqab</option>
+          <option value="none">Sans voile</option>
+        </select>
         <select id="filter_marital" class="px-3 py-2 border rounded-lg bg-white">
           <option value="">Situation maritale</option>
           <option value="celibataire">Célibataire</option>
@@ -66,11 +54,30 @@
           <option value="veuf">Veuf(ve)</option>
           <option value="marie">Marié(e) (polygamie)</option>
         </select>
-        <select id="filter_children" class="px-3 py-2 border rounded-lg bg-white">
-          <option value="">Enfants</option>
-          <option value="no">N'a pas d'enfants</option>
-          <option value="yes">A des enfants</option>
-        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
+        <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Âge min</label>
+          <input type="number" id="filter_age_min" placeholder="18" min="18" max="99" class="w-full px-3 py-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Âge max</label>
+          <input type="number" id="filter_age_max" placeholder="99" min="18" max="99" class="w-full px-3 py-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Enfants</label>
+          <select id="filter_children" class="w-full px-3 py-2 border rounded-lg bg-white">
+            <option value="">—</option>
+            <option value="no">Aucun</option>
+            <option value="yes">Oui</option>
+          </select>
+        </div>
       </div>
 
       <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold">
@@ -90,18 +97,15 @@
 
     function calcAge(birthDate) {
       if (!birthDate) return null;
-      const b = new Date(birthDate);
-      const today = new Date();
-      let age = today.getFullYear() - b.getFullYear();
-      const m = today.getMonth() - b.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+      const b = new Date(birthDate), t = new Date();
+      let age = t.getFullYear() - b.getFullYear();
+      const m = t.getMonth() - b.getMonth();
+      if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
       return age;
     }
 
     function avatarHtml(p) {
-      if (p.avatar_url) {
-        return `<img src="${p.avatar_url}" alt="" class="w-14 h-14 rounded-full object-cover shrink-0">`;
-      }
+      if (p.avatar_url) return `<img src="${p.avatar_url}" class="w-14 h-14 rounded-full object-cover shrink-0">`;
       return `<div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-lg shrink-0">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
     }
 
@@ -122,30 +126,16 @@
       if (filters.city) q = q.ilike('city', '%' + filters.city + '%');
       if (filters.religiosity) q = q.eq('religiosity_level', filters.religiosity);
       if (filters.marital) q = q.eq('marital_status', filters.marital);
+      if (filters.veil) q = q.eq('veil_type', filters.veil);
       if (filters.children === 'no') q = q.eq('has_children', false);
       if (filters.children === 'yes') q = q.eq('has_children', true);
-
-      if (filters.ageMin) {
-        const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMin);
-        q = q.lte('birth_date', d.toISOString().split('T')[0]);
-      }
-      if (filters.ageMax) {
-        const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMax - 1);
-        q = q.gte('birth_date', d.toISOString().split('T')[0]);
-      }
+      if (filters.ageMin) { const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMin); q = q.lte('birth_date', d.toISOString().split('T')[0]); }
+      if (filters.ageMax) { const d = new Date(); d.setFullYear(d.getFullYear() - filters.ageMax - 1); q = q.gte('birth_date', d.toISOString().split('T')[0]); }
 
       const { data, error } = await q.order('last_seen_at', { ascending: false, nullsFirst: false }).limit(50);
 
-      if (error) {
-        results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>';
-        return;
-      }
-
-      if (!data.length) {
-        info.classList.add('hidden');
-        results.innerHTML = '<p class="text-slate-500 text-center py-10">Aucun profil trouvé.</p>';
-        return;
-      }
+      if (error) { results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>'; return; }
+      if (!data.length) { info.classList.add('hidden'); results.innerHTML = '<p class="text-slate-500 text-center py-10">Aucun profil trouvé.</p>'; return; }
 
       info.textContent = data.length + ' profil(s) trouvé(s)';
       info.classList.remove('hidden');
@@ -153,12 +143,8 @@
       results.innerHTML = data.map(p => {
         const age = calcAge(p.birth_date);
         const tags = [];
-
-        // 🧕 Badge voile
         if (p.veil_type === 'hijab') tags.push('🧕 Hijab');
         if (p.veil_type === 'niqab') tags.push('🖤 Niqab');
-
-        // Autres badges
         if (p.marital_status) tags.push(maritalLabels[p.marital_status] || p.marital_status);
         if (p.religiosity_level) tags.push(religiosityLabels[p.religiosity_level] || p.religiosity_level);
         if (p.has_children) tags.push('👶 ' + (p.children_count || 1));
@@ -194,6 +180,7 @@
         city: document.getElementById('filter_city').value.trim(),
         religiosity: document.getElementById('filter_religiosity').value,
         marital: document.getElementById('filter_marital').value,
+        veil: document.getElementById('filter_veil').value,
         children: document.getElementById('filter_children').value,
         ageMin: parseInt(document.getElementById('filter_age_min').value) || null,
         ageMax: parseInt(document.getElementById('filter_age_max').value) || null
