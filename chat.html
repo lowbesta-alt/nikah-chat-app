@@ -9,18 +9,18 @@
   <script src="config.js"></script>
 </head>
 <body class="bg-emerald-50 min-h-screen">
-  <header class="bg-white shadow-sm">
+  <header class="bg-white shadow-sm sticky top-0 z-40">
     <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
       <a href="dashboard.html" class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </a>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="search.html" class="text-slate-600 hover:text-emerald-700">🔍</a>
-        <a href="chat.html" class="relative text-slate-600">
+      <nav class="flex items-center gap-3">
+        <a href="search.html" class="text-2xl" title="Rechercher">🔍</a>
+        <a href="chat.html" class="relative text-2xl" title="Notifications">
           🔔
-          <span id="notifBadge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
         </a>
-        <button onclick="logout()" class="text-red-600 text-sm">Déco</button>
+        <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
       </nav>
     </div>
   </header>
@@ -43,11 +43,20 @@
     async function loadNotifBadge() {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) return;
+      // Récupérer les conversations de l'utilisateur
+      const { data: convs } = await supabaseClient
+        .from('conversations').select('id')
+        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+      if (!convs || !convs.length) return;
+
+      const convIds = convs.map(c => c.id);
       const { count } = await supabaseClient
         .from('messages')
         .select('*', { count: 'exact', head: true })
+        .in('conversation_id', convIds)
         .eq('is_read', false)
         .neq('sender_id', user.id);
+
       const badge = document.getElementById('notifBadge');
       if (count && count > 0) {
         badge.textContent = count > 99 ? '99+' : count;
@@ -58,6 +67,7 @@
     }
 
     function timeAgo(dateStr) {
+      if (!dateStr) return '';
       const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
       if (diff < 60) return 'à l\'instant';
       if (diff < 3600) return Math.floor(diff / 60) + ' min';
@@ -70,10 +80,11 @@
       if (!user) { window.location.href = 'login.html'; return; }
 
       loadNotifBadge();
+      // Rafraîchir le badge toutes les 15 secondes
+      setInterval(loadNotifBadge, 15000);
 
       const { data: convs } = await supabaseClient
-        .from('conversations')
-        .select('*')
+        .from('conversations').select('*')
         .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
@@ -87,13 +98,29 @@
       const { data: users } = await supabaseClient
         .from('profiles').select('id, username, avatar_url, city, country').in('id', otherIds);
 
+      // Compter les non-lus par conversation
+      const convIds = convs.map(c => c.id);
+      const { data: unreadMsgs } = await supabaseClient
+        .from('messages').select('conversation_id')
+        .in('conversation_id', convIds)
+        .eq('is_read', false).neq('sender_id', user.id);
+
+      const unreadByConv = {};
+      (unreadMsgs || []).forEach(m => {
+        unreadByConv[m.conversation_id] = (unreadByConv[m.conversation_id] || 0) + 1;
+      });
+
       list.innerHTML = convs.map(c => {
         const otherId = c.participant_one === user.id ? c.participant_two : c.participant_one;
         const other = users?.find(u => u.id === otherId) || { username: 'Utilisateur' };
         const avatar = other.avatar_url
           ? `<img src="${other.avatar_url}" class="w-12 h-12 rounded-full object-cover">`
           : `<div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700">${(other.username||'?').charAt(0).toUpperCase()}</div>`;
-        const badge = c.is_unlocked
+        const unread = unreadByConv[c.id] || 0;
+        const unreadBadge = unread > 0
+          ? `<span class="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">${unread}</span>`
+          : '';
+        const lockBadge = c.is_unlocked
           ? '<span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Illimité</span>'
           : `<span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">${c.message_count}/10</span>`;
 
@@ -101,9 +128,13 @@
           <a href="chat-room.html?user=${otherId}" class="block bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 hover:bg-emerald-50 transition">
             ${avatar}
             <div class="flex-1 min-w-0">
-              <p class="font-semibold truncate">${other.username} ${badge}</p>
+              <div class="flex items-center gap-2">
+                <p class="font-semibold truncate">${other.username}</p>
+                ${lockBadge}
+              </div>
               <p class="text-xs text-slate-500 truncate">${other.city || ''}${other.city && other.country ? ', ' : ''}${other.country || ''} · ${timeAgo(c.last_message_at)}</p>
             </div>
+            ${unreadBadge}
             <span class="text-emerald-600">→</span>
           </a>
         `;
