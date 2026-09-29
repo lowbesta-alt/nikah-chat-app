@@ -26,6 +26,29 @@
     <h1 class="text-xl font-bold text-slate-800 mb-1">Salam aleykoum 👋</h1>
     <p class="text-sm text-slate-500 mb-6" id="welcome">Chargement…</p>
 
+    <!-- ==================== PHOTO DE PROFIL ==================== -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4">
+      <h2 class="font-bold text-lg mb-4">Ma photo de profil</h2>
+
+      <div class="flex items-center gap-4">
+        <div id="avatarPreview" class="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shrink-0">
+          <span class="text-3xl text-emerald-700 font-bold">?</span>
+        </div>
+
+        <div class="flex-1">
+          <input type="file" id="avatarInput" accept="image/*" class="hidden">
+          <button type="button" onclick="document.getElementById('avatarInput').click()"
+                  class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl text-sm">
+            📸 Choisir une photo
+          </button>
+          <p class="text-xs text-slate-500 mt-2 text-center">JPG ou PNG · 2 Mo max</p>
+        </div>
+      </div>
+
+      <div id="avatarMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
+    </div>
+    <!-- ==================== FIN PHOTO ==================== -->
+
     <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 class="font-bold text-lg">Mon profil</h2>
 
@@ -64,7 +87,6 @@
         </select>
       </div>
 
-      <!-- SITUATION MARITALE -->
       <div>
         <label class="block text-sm font-medium mb-1">Situation maritale</label>
         <select id="marital_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -76,7 +98,6 @@
         </select>
       </div>
 
-      <!-- ENFANTS -->
       <div class="border-t pt-3">
         <label class="block text-sm font-medium mb-1">Enfants</label>
         <select id="has_children" onchange="toggleChildren()"
@@ -91,7 +112,6 @@
         </div>
       </div>
 
-      <!-- CADRE DE VIE -->
       <div>
         <label class="block text-sm font-medium mb-1">Cadre de vie</label>
         <select id="living_situation" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -101,7 +121,6 @@
         </select>
       </div>
 
-      <!-- SITUATION SOCIO-ÉCONOMIQUE -->
       <div class="border-t pt-3 space-y-3">
         <h3 class="font-semibold text-slate-700 text-sm">Situation socio-économique</h3>
 
@@ -151,8 +170,10 @@
 
   <script>
     const msg = document.getElementById('message');
+    const avatarMsg = document.getElementById('avatarMessage');
     let currentUser = null;
     let currentGender = 'male';
+    let currentAvatarUrl = null;
 
     function show(t, c) {
       msg.textContent = t;
@@ -162,15 +183,81 @@
       msg.classList.remove('hidden');
     }
 
+    function showAvatar(t, c) {
+      avatarMsg.textContent = t;
+      avatarMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok'
+        ? 'bg-emerald-50 text-emerald-700'
+        : 'bg-red-50 text-red-700');
+      avatarMsg.classList.remove('hidden');
+    }
+
     function toggleChildren() {
       const v = document.getElementById('has_children').value === 'true';
       document.getElementById('childrenCountDiv').classList.toggle('hidden', !v);
+    }
+
+    function setAvatarPreview(url, username) {
+      const box = document.getElementById('avatarPreview');
+      if (url) {
+        box.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
+      } else {
+        box.innerHTML = '<span class="text-3xl text-emerald-700 font-bold">' +
+          (username ? username.charAt(0).toUpperCase() : '?') + '</span>';
+      }
     }
 
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
+
+    // ---- Upload de l'avatar ----
+    document.getElementById('avatarInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (file.size > 2 * 1024 * 1024) {
+        showAvatar('❌ Fichier trop lourd (max 2 Mo)', 'err');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        showAvatar('❌ Format invalide', 'err');
+        return;
+      }
+
+      showAvatar('⏳ Upload en cours…', 'ok');
+
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = currentUser.id + '/avatar.' + ext;
+
+      const { error: upErr } = await supabaseClient.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type });
+
+      if (upErr) {
+        showAvatar('❌ ' + upErr.message, 'err');
+        return;
+      }
+
+      // URL publique (avec cache-buster pour forcer le rafraîchissement)
+      const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+      const url = pub.publicUrl + '?v=' + Date.now();
+
+      // Sauvegarder dans profiles
+      const { error: dbErr } = await supabaseClient
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', currentUser.id);
+
+      if (dbErr) {
+        showAvatar('❌ ' + dbErr.message, 'err');
+        return;
+      }
+
+      currentAvatarUrl = url;
+      setAvatarPreview(url, null);
+      showAvatar('✅ Photo mise à jour !', 'ok');
+    });
 
     (async () => {
       const { data: { user } } = await supabaseClient.auth.getUser();
@@ -181,6 +268,7 @@
 
       if (p) {
         currentGender = p.gender || 'male';
+        currentAvatarUrl = p.avatar_url;
         document.getElementById('username').value = p.username || '';
         document.getElementById('birth_date').value = p.birth_date || '';
         document.getElementById('country').value = p.country || '';
@@ -193,13 +281,13 @@
         document.getElementById('education_level').value = p.education_level || '';
         document.getElementById('bio').value = p.bio || '';
         document.getElementById('has_children').value = p.has_children ? 'true' : 'false';
-        if (p.has_children) {
-          document.getElementById('children_count').value = p.children_count || 1;
-        }
+        if (p.has_children) document.getElementById('children_count').value = p.children_count || 1;
         toggleChildren();
+        setAvatarPreview(p.avatar_url, p.username);
         document.getElementById('welcome').textContent = 'Bienvenue ' + (p.username || user.email);
       } else {
         document.getElementById('welcome').textContent = 'Complète ton profil ci-dessous.';
+        setAvatarPreview(null, null);
       }
     })();
 
@@ -213,6 +301,7 @@
         id: currentUser.id,
         username: document.getElementById('username').value.trim(),
         gender: currentGender,
+        avatar_url: currentAvatarUrl,
         birth_date: document.getElementById('birth_date').value || null,
         country: document.getElementById('country').value.trim() || null,
         city: document.getElementById('city').value.trim() || null,
@@ -232,8 +321,8 @@
       if (error) {
         show('❌ ' + error.message, 'err');
       } else {
-        show('✅ Profil enregistré ! Redirection vers la recherche…', 'ok');
-        setTimeout(() => { window.location.href = 'search.html'; }, 1500);
+        show('✅ Profil enregistré ! Redirection…', 'ok');
+        setTimeout(() => { window.location.href = 'search.html'; }, 1200);
       }
     });
   </script>
