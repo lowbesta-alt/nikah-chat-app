@@ -9,15 +9,18 @@
   <script src="config.js"></script>
 </head>
 <body class="bg-emerald-50 min-h-screen">
-  <header class="bg-white shadow-sm">
+  <header class="bg-white shadow-sm sticky top-0 z-40">
     <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
-      <nav class="flex items-center gap-4 text-sm">
-        <a href="dashboard.html" class="text-slate-600 hover:text-emerald-700">Profil</a>
-        <a href="chat.html" class="text-slate-600 hover:text-emerald-700">Messages</a>
-        <button onclick="logout()" class="text-red-600 hover:underline">Déconnexion</button>
+      <nav class="flex items-center gap-3">
+        <a href="dashboard.html" class="text-2xl" title="Mon profil">👤</a>
+        <a href="chat.html" class="relative text-2xl" title="Messages">
+          🔔
+          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
+        </a>
+        <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
       </nav>
     </div>
   </header>
@@ -94,6 +97,25 @@
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
+
+    async function loadNotifBadge() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) return;
+      const { data: convs } = await supabaseClient
+        .from('conversations').select('id')
+        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+      if (!convs || !convs.length) return;
+      const convIds = convs.map(c => c.id);
+      const { count } = await supabaseClient
+        .from('messages').select('*', { count: 'exact', head: true })
+        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
+      const badge = document.getElementById('notifBadge');
+      if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
+      else badge.classList.add('hidden');
+    }
+
+    loadNotifBadge();
+    setInterval(loadNotifBadge, 15000);
 
     function calcAge(birthDate) {
       if (!birthDate) return null;
