@@ -10,7 +10,7 @@
 </head>
 <body class="bg-emerald-50 min-h-screen">
   <header class="bg-white shadow-sm">
-    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+    <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
       <a href="dashboard.html" class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </a>
@@ -22,10 +22,10 @@
   </header>
 
   <main class="max-w-2xl mx-auto p-4">
-    <h1 class="text-xl font-bold mb-4">Messages</h1>
-    <div id="convList" class="space-y-3"></div>
+    <h1 class="text-xl font-bold mb-4">Mes conversations</h1>
+    <div id="convList" class="space-y-2"></div>
     <p id="empty" class="text-center text-slate-500 mt-10 hidden">
-      Aucune conversation pour l'instant. <br>
+      Aucune conversation pour l'instant.<br>
       <a href="search.html" class="text-emerald-600 hover:underline">Trouver des profils</a>
     </p>
   </main>
@@ -36,6 +36,15 @@
       window.location.href = 'index.html';
     }
 
+    function timeAgo(dateStr) {
+      const d = new Date(dateStr);
+      const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return 'à l\'instant';
+      if (diff < 3600) return Math.floor(diff / 60) + ' min';
+      if (diff < 86400) return Math.floor(diff / 3600) + ' h';
+      return Math.floor(diff / 86400) + ' j';
+    }
+
     (async () => {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
@@ -43,7 +52,8 @@
       const { data: convs } = await supabaseClient
         .from('conversations')
         .select('*')
-        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id)
+        .order('last_message_at', { ascending: false, nullsFirst: false });
 
       const list = document.getElementById('convList');
       if (!convs || !convs.length) {
@@ -51,18 +61,32 @@
         return;
       }
 
-      // Récupérer les infos de l'autre participant
       const otherIds = convs.map(c => c.participant_one === user.id ? c.participant_two : c.participant_one);
-      const { data: users } = await supabaseClient.from('profiles').select('id, username, city, country').in('id', otherIds);
+      const { data: users } = await supabaseClient
+        .from('profiles')
+        .select('id, username, avatar_url, city, country')
+        .in('id', otherIds);
 
       list.innerHTML = convs.map(c => {
         const otherId = c.participant_one === user.id ? c.participant_two : c.participant_one;
         const other = users?.find(u => u.id === otherId) || { username: 'Utilisateur' };
+        const avatar = other.avatar_url
+          ? `<img src="${other.avatar_url}" class="w-12 h-12 rounded-full object-cover">`
+          : `<div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700">${(other.username||'?').charAt(0).toUpperCase()}</div>`;
+
+        const badge = c.is_unlocked
+          ? '<span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Illimité</span>'
+          : `<span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">${c.message_count}/10</span>`;
+
         return `
-          <div class="bg-white rounded-xl shadow p-4">
-            <p class="font-semibold">${other.username}</p>
-            <p class="text-sm text-slate-500">${c.is_unlocked ? '✅ Illimité' : c.message_count + '/10 messages'}</p>
-          </div>
+          <a href="chat-room.html?user=${otherId}" class="block bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 hover:bg-emerald-50 transition">
+            ${avatar}
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold truncate">${other.username} ${badge}</p>
+              <p class="text-xs text-slate-500 truncate">${other.city || ''}${other.city && other.country ? ', ' : ''}${other.country || ''} · ${timeAgo(c.last_message_at)}</p>
+            </div>
+            <span class="text-emerald-600">→</span>
+          </a>
         `;
       }).join('');
     })();
