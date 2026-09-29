@@ -15,9 +15,12 @@
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
       <nav class="flex items-center gap-4 text-sm">
-        <a href="search.html" class="text-slate-600 hover:text-emerald-700">Rechercher</a>
-        <a href="chat.html" class="text-slate-600 hover:text-emerald-700">Messages</a>
-        <button onclick="logout()" class="text-red-600 hover:underline">Déconnexion</button>
+        <a href="search.html" class="text-slate-600 hover:text-emerald-700">🔍</a>
+        <a href="chat.html" class="relative text-slate-600 text-lg">
+          🔔
+          <span id="notifBadge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+        </a>
+        <button onclick="logout()" class="text-red-600 text-sm">Déco</button>
       </nav>
     </div>
   </header>
@@ -26,15 +29,12 @@
     <h1 class="text-xl font-bold text-slate-800 mb-1">Salam aleykoum 👋</h1>
     <p class="text-sm text-slate-500 mb-6" id="welcome">Chargement…</p>
 
-    <!-- ==================== PHOTO DE PROFIL ==================== -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
       <h2 class="font-bold text-lg mb-4">Ma photo de profil</h2>
-
       <div class="flex items-center gap-4">
         <div id="avatarPreview" class="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shrink-0">
           <span class="text-3xl text-emerald-700 font-bold">?</span>
         </div>
-
         <div class="flex-1">
           <input type="file" id="avatarInput" accept="image/*" class="hidden">
           <button type="button" onclick="document.getElementById('avatarInput').click()"
@@ -44,39 +44,30 @@
           <p class="text-xs text-slate-500 mt-2 text-center">JPG ou PNG · 2 Mo max</p>
         </div>
       </div>
-
       <div id="avatarMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
     </div>
-    <!-- ==================== FIN PHOTO ==================== -->
 
     <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 class="font-bold text-lg">Mon profil</h2>
 
       <div>
         <label class="block text-sm font-medium mb-1">Pseudo</label>
-        <input type="text" id="username" required
-               class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        <input type="text" id="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
       </div>
-
       <div>
         <label class="block text-sm font-medium mb-1">Date de naissance</label>
-        <input type="date" id="birth_date"
-               class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        <input type="date" id="birth_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
       </div>
-
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium mb-1">Pays</label>
-          <input type="text" id="country" placeholder="Cameroun"
-                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+          <input type="text" id="country" placeholder="Cameroun" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
         </div>
         <div>
           <label class="block text-sm font-medium mb-1">Ville</label>
-          <input type="text" id="city" placeholder="Douala"
-                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+          <input type="text" id="city" placeholder="Douala" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
         </div>
       </div>
-
       <div>
         <label class="block text-sm font-medium mb-1">Niveau de pratique</label>
         <select id="religiosity_level" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -86,7 +77,6 @@
           <option value="tres_pratiquant">Très pratiquant</option>
         </select>
       </div>
-
       <div>
         <label class="block text-sm font-medium mb-1">Situation maritale</label>
         <select id="marital_status" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -97,21 +87,17 @@
           <option value="marie">Marié(e) — ouvert(e) à la polygamie</option>
         </select>
       </div>
-
       <div class="border-t pt-3">
         <label class="block text-sm font-medium mb-1">Enfants</label>
-        <select id="has_children" onchange="toggleChildren()"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
+        <select id="has_children" onchange="toggleChildren()" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
           <option value="false">N'a pas d'enfants</option>
           <option value="true">A des enfants</option>
         </select>
         <div id="childrenCountDiv" class="hidden mt-2">
           <label class="block text-sm font-medium mb-1">Nombre d'enfants</label>
-          <input type="number" id="children_count" min="1" max="15" value="1"
-                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+          <input type="number" id="children_count" min="1" max="15" value="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
         </div>
       </div>
-
       <div>
         <label class="block text-sm font-medium mb-1">Cadre de vie</label>
         <select id="living_situation" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -120,18 +106,14 @@
           <option value="famille">Vit en famille / chez les parents</option>
         </select>
       </div>
-
       <div class="border-t pt-3 space-y-3">
         <h3 class="font-semibold text-slate-700 text-sm">Situation socio-économique</h3>
-
         <div>
           <label class="block text-sm font-medium mb-1">Profession</label>
-          <input type="text" id="profession" placeholder="Ex: Ingénieur, Enseignant…"
-                 class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+          <input type="text" id="profession" placeholder="Ex: Ingénieur…" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
         </div>
-
         <div>
-          <label class="block text-sm font-medium mb-1">Tranche de revenus annuels (optionnel)</label>
+          <label class="block text-sm font-medium mb-1">Tranche de revenus (optionnel)</label>
           <select id="income_range" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
             <option value="">— Préfère ne pas dire —</option>
             <option value="< 500 000 FCFA">Moins de 500 000 FCFA</option>
@@ -140,7 +122,6 @@
             <option value="> 3 000 000 FCFA">Plus de 3 000 000 FCFA</option>
           </select>
         </div>
-
         <div>
           <label class="block text-sm font-medium mb-1">Niveau d'études</label>
           <select id="education_level" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none bg-white">
@@ -153,13 +134,10 @@
           </select>
         </div>
       </div>
-
       <div>
         <label class="block text-sm font-medium mb-1">Bio</label>
-        <textarea id="bio" rows="3" placeholder="Parlez de vous…"
-                  class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none"></textarea>
+        <textarea id="bio" rows="3" placeholder="Parlez de vous…" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none"></textarea>
       </div>
-
       <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">
         Enregistrer mon profil
       </button>
@@ -186,8 +164,7 @@
     function showAvatar(t, c) {
       avatarMsg.textContent = t;
       avatarMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok'
-        ? 'bg-emerald-50 text-emerald-700'
-        : 'bg-red-50 text-red-700');
+        ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
       avatarMsg.classList.remove('hidden');
     }
 
@@ -198,12 +175,8 @@
 
     function setAvatarPreview(url, username) {
       const box = document.getElementById('avatarPreview');
-      if (url) {
-        box.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
-      } else {
-        box.innerHTML = '<span class="text-3xl text-emerald-700 font-bold">' +
-          (username ? username.charAt(0).toUpperCase() : '?') + '</span>';
-      }
+      if (url) box.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
+      else box.innerHTML = '<span class="text-3xl text-emerald-700 font-bold">' + (username ? username.charAt(0).toUpperCase() : '?') + '</span>';
     }
 
     async function logout() {
@@ -211,49 +184,32 @@
       window.location.href = 'index.html';
     }
 
-    // ---- Upload de l'avatar ----
+    // 🔔 Compter les non-lus
+    async function loadNotifBadge() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) return;
+      const { count } = await supabaseClient
+        .from('messages').select('*', { count: 'exact', head: true })
+        .eq('is_read', false).neq('sender_id', user.id);
+      const badge = document.getElementById('notifBadge');
+      if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
+      else badge.classList.add('hidden');
+    }
+
     document.getElementById('avatarInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
-      if (file.size > 2 * 1024 * 1024) {
-        showAvatar('❌ Fichier trop lourd (max 2 Mo)', 'err');
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        showAvatar('❌ Format invalide', 'err');
-        return;
-      }
-
+      if (file.size > 2 * 1024 * 1024) { showAvatar('❌ Fichier trop lourd (max 2 Mo)', 'err'); return; }
+      if (!file.type.startsWith('image/')) { showAvatar('❌ Format invalide', 'err'); return; }
       showAvatar('⏳ Upload en cours…', 'ok');
-
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = currentUser.id + '/avatar.' + ext;
-
-      const { error: upErr } = await supabaseClient.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type });
-
-      if (upErr) {
-        showAvatar('❌ ' + upErr.message, 'err');
-        return;
-      }
-
-      // URL publique (avec cache-buster pour forcer le rafraîchissement)
+      const { error: upErr } = await supabaseClient.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) { showAvatar('❌ ' + upErr.message, 'err'); return; }
       const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
       const url = pub.publicUrl + '?v=' + Date.now();
-
-      // Sauvegarder dans profiles
-      const { error: dbErr } = await supabaseClient
-        .from('profiles')
-        .update({ avatar_url: url })
-        .eq('id', currentUser.id);
-
-      if (dbErr) {
-        showAvatar('❌ ' + dbErr.message, 'err');
-        return;
-      }
-
+      const { error: dbErr } = await supabaseClient.from('profiles').update({ avatar_url: url }).eq('id', currentUser.id);
+      if (dbErr) { showAvatar('❌ ' + dbErr.message, 'err'); return; }
       currentAvatarUrl = url;
       setAvatarPreview(url, null);
       showAvatar('✅ Photo mise à jour !', 'ok');
@@ -263,9 +219,9 @@
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
       currentUser = user;
+      loadNotifBadge();
 
       const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
-
       if (p) {
         currentGender = p.gender || 'male';
         currentAvatarUrl = p.avatar_url;
@@ -294,9 +250,7 @@
     document.getElementById('profileForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!currentUser) return;
-
       const hasChildren = document.getElementById('has_children').value === 'true';
-
       const data = {
         id: currentUser.id,
         username: document.getElementById('username').value.trim(),
@@ -315,15 +269,9 @@
         children_count: hasChildren ? parseInt(document.getElementById('children_count').value) || 0 : 0,
         bio: document.getElementById('bio').value.trim() || null
       };
-
       const { error } = await supabaseClient.from('profiles').upsert(data, { onConflict: 'id' });
-
-      if (error) {
-        show('❌ ' + error.message, 'err');
-      } else {
-        show('✅ Profil enregistré ! Redirection…', 'ok');
-        setTimeout(() => { window.location.href = 'search.html'; }, 1200);
-      }
+      if (error) show('❌ ' + error.message, 'err');
+      else { show('✅ Profil enregistré !', 'ok'); setTimeout(() => window.location.href = 'search.html', 1200); }
     });
   </script>
 </body>
