@@ -22,14 +22,15 @@
     </div>
   </header>
 
-  <!-- Bandeau d'état visible (debug) -->
-  <div id="statusBar" class="hidden text-xs text-center py-1.5 px-3 shrink-0"></div>
+  <!-- Bandeau d'état PERSISTANT -->
+  <div id="statusBar" class="text-xs text-center py-2 px-3 shrink-0 bg-slate-200 text-slate-600">
+    Prêt
+  </div>
 
   <main id="messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 max-w-3xl w-full mx-auto"></main>
 
   <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
     <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 10 messages gratuits.</p>
-    <p class="text-xs text-amber-700 mb-3">Débloquez la discussion en illimité pour 600 FCFA / 1 $.</p>
     <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-semibold">
       💳 Débloquer pour 600 FCFA
     </button>
@@ -39,14 +40,12 @@
     <div class="max-w-3xl mx-auto flex items-center gap-2 p-3">
       <input type="file" id="fileInput" accept="image/*" hidden>
       <button onclick="document.getElementById('fileInput').click()"
-              class="w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-lg shrink-0">📷</button>
-
-      <button id="micBtn" class="w-11 h-11 rounded-full bg-slate-100 hover:bg-slate-200 text-lg shrink-0">🎤</button>
-
-      <input type="text" id="input" placeholder="Écrivez votre message…"
+              class="w-11 h-11 rounded-full bg-slate-100 text-lg shrink-0">📷</button>
+      <button id="micBtn" class="w-11 h-11 rounded-full bg-slate-100 text-lg shrink-0">🎤</button>
+      <input type="text" id="input" placeholder="Écrivez…"
              class="flex-1 px-4 py-3 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0">
       <button id="sendBtn" onclick="sendMessage()"
-              class="bg-emerald-600 hover:bg-emerald-700 text-white w-12 h-12 rounded-full font-bold text-lg shrink-0">➤</button>
+              class="bg-emerald-600 text-white w-12 h-12 rounded-full font-bold text-lg shrink-0">➤</button>
     </div>
   </footer>
 
@@ -54,30 +53,35 @@
     let currentUser = null;
     let conversationId = null;
     let otherUserId = null;
-    let otherUserName = '';
     let channel = null;
     let mediaRecorder = null;
     let audioChunks = [];
-    let recordingStart = 0;
     let isRecording = false;
 
     const params = new URLSearchParams(window.location.search);
     otherUserId = params.get('user');
 
+    function setStatus(text, type) {
+      const bar = document.getElementById('statusBar');
+      bar.textContent = text;
+      bar.className = 'text-xs text-center py-2 px-3 shrink-0 ' + (
+        type === 'ok' ? 'bg-emerald-100 text-emerald-800'
+        : type === 'err' ? 'bg-red-100 text-red-800'
+        : type === 'rec' ? 'bg-red-500 text-white font-bold'
+        : 'bg-slate-200 text-slate-600'
+      );
+      console.log('[STATUS]', text);
+    }
+
     function escapeHtml(s) {
       return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
-    // Bandeau d'état (aide au diagnostic)
-    function setStatus(text, type) {
-      const bar = document.getElementById('statusBar');
-      if (!text) { bar.classList.add('hidden'); return; }
-      bar.textContent = text;
-      bar.className = 'text-xs text-center py-1.5 px-3 shrink-0 ' + (
-        type === 'ok' ? 'bg-emerald-100 text-emerald-800'
-        : type === 'err' ? 'bg-red-100 text-red-800'
-        : 'bg-amber-100 text-amber-800'
-      );
+    async function signedUrl(path) {
+      const { data, error } = await supabaseClient.storage
+        .from('chat-media').createSignedUrl(path, 3600);
+      if (error) { console.error('signedUrl err', error); return null; }
+      return data.signedUrl;
     }
 
     async function renderMessage(m) {
@@ -88,16 +92,11 @@
       if (m.content_type === 'text') {
         content = `<p class="whitespace-pre-wrap break-words">${escapeHtml(m.text_body)}</p>`;
       } else if (m.content_type === 'image') {
-        // URL stockée = chemin dans bucket privé → générer une URL signée
         const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
-        content = url
-          ? `<img src="${url}" class="max-w-full rounded-lg cursor-pointer" onclick="window.open('${url}','_blank')">`
-          : `<p class="italic text-xs">[image indisponible]</p>`;
+        content = url ? `<img src="${url}" class="max-w-full rounded-lg">` : `<p class="italic text-xs">[image indisponible]</p>`;
       } else if (m.content_type === 'audio') {
         const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
-        content = url
-          ? `<audio controls src="${url}" class="max-w-full"></audio>`
-          : `<p class="italic text-xs">[audio indisponible]</p>`;
+        content = url ? `<audio controls src="${url}" class="max-w-full"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
       }
 
       const html = `
@@ -113,12 +112,22 @@
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
 
-    async function signedUrl(path) {
-      const { data, error } = await supabaseClient.storage
-        .from('chat-media')
-        .createSignedUrl(path, 3600);
-      if (error) { console.error('signedUrl error', error); return null; }
-      return data.signedUrl;
+    async function insertMessage(payload) {
+      const { error } = await supabaseClient.from('messages').insert({
+        conversation_id: conversationId,
+        sender_id: currentUser.id,
+        ...payload
+      });
+      if (error) {
+        if (error.message.includes('QUOTA_REACHED')) {
+          document.getElementById('paywall').classList.remove('hidden');
+          document.getElementById('composer').classList.add('hidden');
+        } else {
+          setStatus('❌ BDD : ' + error.message, 'err');
+        }
+        return false;
+      }
+      return true;
     }
 
     async function init() {
@@ -127,27 +136,21 @@
       currentUser = user;
 
       if (!otherUserId) {
-        document.getElementById('messages').innerHTML = '<p class="text-center text-red-500 mt-10">Utilisateur non précisé.</p>';
+        setStatus('❌ Utilisateur non précisé', 'err');
         return;
       }
 
       const { data: other } = await supabaseClient.from('profiles')
-        .select('username, city, country, avatar_url').eq('id', otherUserId).single();
+        .select('username, city, country').eq('id', otherUserId).single();
       if (other) {
-        otherUserName = other.username || 'Utilisateur';
-        document.getElementById('otherName').textContent = otherUserName;
-        document.getElementById('otherInfo').textContent =
-          (other.city || '') + (other.city && other.country ? ', ' : '') + (other.country || '');
+        document.getElementById('otherName').textContent = other.username || 'Utilisateur';
+        document.getElementById('otherInfo').textContent = (other.city||'') + (other.country ? ', '+other.country : '');
       }
 
       const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', {
         p_other_user: otherUserId
       });
-
-      if (rpcErr) {
-        document.getElementById('messages').innerHTML = '<p class="text-center text-red-500 mt-10">Erreur : ' + rpcErr.message + '</p>';
-        return;
-      }
+      if (rpcErr) { setStatus('❌ ' + rpcErr.message, 'err'); return; }
       conversationId = convId;
 
       const { data: msgs } = await supabaseClient.from('messages')
@@ -157,7 +160,7 @@
       document.getElementById('messages').innerHTML = '';
       if (!msgs || !msgs.length) {
         document.getElementById('messages').innerHTML =
-          '<p class="text-center text-slate-400 text-sm py-10" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message courtois.</p>';
+          '<p class="text-center text-slate-400 text-sm py-10" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';
       } else {
         for (const m of msgs) await renderMessage(m);
       }
@@ -165,20 +168,18 @@
       await refreshQuota();
 
       channel = supabaseClient.channel('conv:' + conversationId)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'messages',
-          filter: 'conversation_id=eq.' + conversationId
-        }, async (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
+          filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
           const emptyMsg = document.getElementById('emptyMsg');
           if (emptyMsg) emptyMsg.remove();
           await renderMessage(payload.new);
           refreshQuota();
         })
-        .on('postgres_changes', {
-          event: 'UPDATE', schema: 'public', table: 'conversations',
-          filter: 'id=eq.' + conversationId
-        }, (payload) => updateQuotaUI(payload.new))
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations',
+          filter: 'id=eq.' + conversationId }, (payload) => updateQuotaUI(payload.new))
         .subscribe();
+
+      setStatus('Prêt', 'info');
     }
 
     async function refreshQuota() {
@@ -190,24 +191,15 @@
     function updateQuotaUI(conv) {
       const locked = !conv.is_unlocked && conv.message_count >= 10;
       const q = document.getElementById('quota');
-
-      if (conv.is_unlocked) {
-        q.textContent = 'Illimité ✓';
-        q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
+      if (conv.is_unlocked) { q.textContent = 'Illimité ✓'; q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden');
-        document.getElementById('composer').classList.remove('hidden');
-      } else if (locked) {
-        q.textContent = '10/10';
-        q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
+        document.getElementById('composer').classList.remove('hidden'); }
+      else if (locked) { q.textContent = '10/10'; q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
         document.getElementById('paywall').classList.remove('hidden');
-        document.getElementById('composer').classList.add('hidden');
-      } else {
-        const remain = 10 - conv.message_count;
-        q.textContent = remain + ' msg' + (remain > 1 ? 's' : '');
-        q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
+        document.getElementById('composer').classList.add('hidden'); }
+      else { const r = 10 - conv.message_count; q.textContent = r + ' msg' + (r>1?'s':''); q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden');
-        document.getElementById('composer').classList.remove('hidden');
-      }
+        document.getElementById('composer').classList.remove('hidden'); }
     }
 
     async function sendMessage() {
@@ -215,34 +207,17 @@
       const text = input.value.trim();
       if (!text) return;
       input.value = '';
-      await insertMessage({ content_type: 'text', text_body: text });
-    }
-
-    async function insertMessage(payload) {
-      const { error } = await supabaseClient.from('messages').insert({
-        conversation_id: conversationId,
-        sender_id: currentUser.id,
-        ...payload
-      });
-      if (error) {
-        if (error.message.includes('QUOTA_REACHED')) {
-          document.getElementById('paywall').classList.remove('hidden');
-          document.getElementById('composer').classList.add('hidden');
-          await refreshQuota();
-        } else {
-          setStatus('❌ ' + error.message, 'err');
-        }
-      }
+      const ok = await insertMessage({ content_type: 'text', text_body: text });
+      if (ok) setStatus('✅ Message envoyé', 'ok');
     }
 
     // ---- ENVOI DE PHOTO ----
     document.getElementById('fileInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      setStatus('⏳ Préparation de la photo…', 'info');
+      setStatus('⏳ Préparation photo…', 'info');
 
       try {
-        // Compression
         const img = new Image();
         const reader = new FileReader();
         reader.onload = () => { img.src = reader.result; };
@@ -256,49 +231,59 @@
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
 
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
-        setStatus('⏳ Envoi de la photo…', 'info');
+        setStatus('⏳ Upload photo (' + Math.round(blob.size/1024) + ' Ko)…', 'info');
 
         const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
         const { error: upErr } = await supabaseClient.storage
-          .from('chat-media')
-          .upload(path, blob, { contentType: 'image/jpeg' });
-
+          .from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
         if (upErr) throw upErr;
 
-        // On stocke le CHEMIN (pas l'URL) car le bucket est privé
-        await insertMessage({ content_type: 'image', content_url: path });
-        setStatus('✅ Photo envoyée', 'ok');
-        setTimeout(() => setStatus(''), 2000);
+        const ok = await insertMessage({ content_type: 'image', content_url: path });
+        if (ok) setStatus('✅ Photo envoyée', 'ok');
       } catch (err) {
         console.error(err);
         setStatus('❌ Photo : ' + err.message, 'err');
+        alert('Erreur photo : ' + err.message);
       } finally {
         e.target.value = '';
       }
     });
 
-    // ---- ENREGISTREMENT VOCAL ----
+    // ---- VOCAL ----
     document.getElementById('micBtn').addEventListener('click', async () => {
       if (isRecording) {
-        mediaRecorder.stop();
+        setStatus('⏹ Arrêt en cours…', 'info');
+        try { mediaRecorder.stop(); } catch(e) { setStatus('❌ ' + e.message, 'err'); }
         return;
       }
 
       try {
         setStatus('🎤 Autorisation micro…', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setStatus('🎤 Micro OK, démarrage…', 'info');
 
-        // Choisir un format supporté
-        let mimeType = 'audio/webm';
-        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
-        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-        else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+        // Essayer plusieurs formats
+        let mimeType = '';
+        const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+        for (const opt of options) {
+          if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(opt)) {
+            mimeType = opt; break;
+          }
+        }
+        console.log('mimeType choisi:', mimeType || '(défaut)');
 
-        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         audioChunks = [];
-        recordingStart = Date.now();
 
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.ondataavailable = e => {
+          console.log('dataavailable size:', e.data.size);
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onerror = (e) => {
+          console.error('recorder error', e);
+          setStatus('❌ Erreur recorder : ' + (e.error?.message || 'inconnue'), 'err');
+        };
 
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
@@ -306,31 +291,34 @@
           document.getElementById('micBtn').textContent = '🎤';
           document.getElementById('micBtn').classList.remove('bg-red-500', 'text-white');
 
-          const blob = new Blob(audioChunks, { type: mimeType });
-          if (blob.size < 500) {
-            setStatus('⚠️ Enregistrement trop court', 'err');
-            setTimeout(() => setStatus(''), 2500);
+          const totalSize = audioChunks.reduce((a, c) => a + c.size, 0);
+          console.log('totalSize:', totalSize);
+          setStatus('📦 Blob total : ' + totalSize + ' octets', 'info');
+
+          if (totalSize < 500) {
+            setStatus('❌ Enregistrement vide (' + totalSize + ' o). Reformulez.', 'err');
+            alert('Enregistrement vide. Vérifie que le micro est autorisé et parle bien pendant 3 secondes.');
             return;
           }
 
-          setStatus('⏳ Envoi du vocal…', 'info');
-
           try {
-            const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+            const actualType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+            const blob = new Blob(audioChunks, { type: actualType });
+            const ext = actualType.includes('mp4') ? 'm4a' : actualType.includes('ogg') ? 'ogg' : 'webm';
+
+            setStatus('⏳ Upload vocal (' + Math.round(blob.size/1024) + ' Ko)…', 'info');
+
             const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
-
             const { error: upErr } = await supabaseClient.storage
-              .from('chat-media')
-              .upload(path, blob, { contentType: mimeType });
-
+              .from('chat-media').upload(path, blob, { contentType: actualType });
             if (upErr) throw upErr;
 
-            await insertMessage({ content_type: 'audio', content_url: path });
-            setStatus('✅ Vocal envoyé', 'ok');
-            setTimeout(() => setStatus(''), 2000);
+            const ok = await insertMessage({ content_type: 'audio', content_url: path });
+            if (ok) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
           } catch (err) {
             console.error(err);
             setStatus('❌ Vocal : ' + err.message, 'err');
+            alert('Erreur vocal : ' + err.message);
           }
         };
 
@@ -338,45 +326,33 @@
         isRecording = true;
         document.getElementById('micBtn').textContent = '⏹';
         document.getElementById('micBtn').classList.add('bg-red-500', 'text-white');
-        setStatus('🔴 Enregistrement en cours… Touchez ⏹ pour envoyer', 'info');
+        setStatus('🔴 ENREGISTREMENT… Parle puis touche ⏹', 'rec');
+
       } catch (err) {
         console.error(err);
         setStatus('❌ Micro : ' + err.message, 'err');
+        alert('Impossible d\'accéder au micro : ' + err.message);
       }
     });
 
-    // ---- DÉBLOQUER ----
     async function unlockConversation() {
-      if (!confirm('Débloquer cette conversation pour 600 FCFA / 1 $ ?')) return;
-      const { data, error } = await supabaseClient.rpc('unlock_conversation', {
-        p_conversation_id: conversationId
-      });
+      if (!confirm('Débloquer pour 600 FCFA / 1 $ ?')) return;
+      const { data, error } = await supabaseClient.rpc('unlock_conversation', { p_conversation_id: conversationId });
       if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-      if (data) {
-        setStatus('✅ Conversation débloquée !', 'ok');
-        await refreshQuota();
-        setTimeout(() => setStatus(''), 2500);
-      }
+      if (data) { setStatus('✅ Conversation débloquée !', 'ok'); await refreshQuota(); }
     }
 
-    // ---- SIGNALER ----
     async function reportUser() {
-      const reason = prompt('Raison du signalement :\n1. Comportement déplacé\n2. Faux profil\n3. Spam\n4. Autre');
+      const reason = prompt('Raison :\n1. Comportement déplacé\n2. Faux profil\n3. Spam\n4. Autre');
       if (!reason) return;
       const details = prompt('Précisez (optionnel) :') || '';
       const { error } = await supabaseClient.from('reports').insert({
-        reporter_id: currentUser.id,
-        reported_id: otherUserId,
-        reason: reason,
-        details: details
+        reporter_id: currentUser.id, reported_id: otherUserId, reason, details
       });
-      if (error) alert('Erreur : ' + error.message);
-      else alert('✅ Signalement envoyé. Merci de veiller à la sécurité de la communauté.');
+      alert(error ? 'Erreur : ' + error.message : '✅ Signalement envoyé.');
     }
 
-    document.getElementById('input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendMessage();
-    });
+    document.getElementById('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
     init();
   </script>
