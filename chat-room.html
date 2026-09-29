@@ -17,15 +17,12 @@
         <p class="font-semibold text-slate-800 truncate" id="otherName">Chargement…</p>
         <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
       </div>
-      <button onclick="reportUser()" class="text-red-500 text-xl" title="Signaler">🚩</button>
+      <button onclick="reportUser()" class="text-red-500 text-xl">🚩</button>
       <span id="quota" class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
     </div>
   </header>
 
-  <!-- Bandeau d'état PERSISTANT -->
-  <div id="statusBar" class="text-xs text-center py-2 px-3 shrink-0 bg-slate-200 text-slate-600">
-    Prêt
-  </div>
+  <div id="statusBar" class="text-xs text-center py-2 px-3 shrink-0 bg-slate-200 text-slate-600">Prêt</div>
 
   <main id="messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 max-w-3xl w-full mx-auto"></main>
 
@@ -58,6 +55,9 @@
     let audioChunks = [];
     let isRecording = false;
 
+    // 🔑 Set des IDs déjà affichés (pour éviter doublons realtime + local)
+    const displayedIds = new Set();
+
     const params = new URLSearchParams(window.location.search);
     otherUserId = params.get('user');
 
@@ -70,7 +70,6 @@
         : type === 'rec' ? 'bg-red-500 text-white font-bold'
         : 'bg-slate-200 text-slate-600'
       );
-      console.log('[STATUS]', text);
     }
 
     function escapeHtml(s) {
@@ -84,7 +83,15 @@
       return data.signedUrl;
     }
 
-    async function renderMessage(m) {
+    async function renderMessage(m, force = false) {
+      // Éviter les doublons
+      if (!force && displayedIds.has(m.id)) return;
+      displayedIds.add(m.id);
+
+      // Retirer le message "vide" initial
+      const emptyMsg = document.getElementById('emptyMsg');
+      if (emptyMsg) emptyMsg.remove();
+
       const mine = m.sender_id === currentUser.id;
       const time = new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -100,7 +107,7 @@
       }
 
       const html = `
-        <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
+        <div class="flex ${mine ? 'justify-end' : 'justify-start'}" data-msg-id="${m.id}">
           <div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm ${mine
             ? 'bg-emerald-600 text-white rounded-br-md'
             : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}">
@@ -113,11 +120,13 @@
     }
 
     async function insertMessage(payload) {
-      const { error } = await supabaseClient.from('messages').insert({
+      // 🔑 On insère ET on récupère la ligne créée
+      const { data, error } = await supabaseClient.from('messages').insert({
         conversation_id: conversationId,
         sender_id: currentUser.id,
         ...payload
-      });
+      }).select().single();
+
       if (error) {
         if (error.message.includes('QUOTA_REACHED')) {
           document.getElementById('paywall').classList.remove('hidden');
@@ -125,9 +134,12 @@
         } else {
           setStatus('❌ BDD : ' + error.message, 'err');
         }
-        return false;
+        return null;
       }
-      return true;
+
+      // ✅ Affichage IMMÉDIAT (sans attendre le realtime)
+      await renderMessage(data);
+      return data;
     }
 
     async function init() {
@@ -135,10 +147,7 @@
       if (!user) { window.location.href = 'login.html'; return; }
       currentUser = user;
 
-      if (!otherUserId) {
-        setStatus('❌ Utilisateur non précisé', 'err');
-        return;
-      }
+      if (!otherUserId) { setStatus('❌ Utilisateur non précisé', 'err'); return; }
 
       const { data: other } = await supabaseClient.from('profiles')
         .select('username, city, country').eq('id', otherUserId).single();
@@ -167,11 +176,11 @@
 
       await refreshQuota();
 
+      // Realtime pour les messages REÇUS des autres
       channel = supabaseClient.channel('conv:' + conversationId)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
           filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
-          const emptyMsg = document.getElementById('emptyMsg');
-          if (emptyMsg) emptyMsg.remove();
+          if (displayedIds.has(payload.new.id)) return; // déjà affiché par nous
           await renderMessage(payload.new);
           refreshQuota();
         })
@@ -192,14 +201,11 @@
       const locked = !conv.is_unlocked && conv.message_count >= 10;
       const q = document.getElementById('quota');
       if (conv.is_unlocked) { q.textContent = 'Illimité ✓'; q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.add('hidden');
-        document.getElementById('composer').classList.remove('hidden'); }
+        document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
       else if (locked) { q.textContent = '10/10'; q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.remove('hidden');
-        document.getElementById('composer').classList.add('hidden'); }
+        document.getElementById('paywall').classList.remove('hidden'); document.getElementById('composer').classList.add('hidden'); }
       else { const r = 10 - conv.message_count; q.textContent = r + ' msg' + (r>1?'s':''); q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.add('hidden');
-        document.getElementById('composer').classList.remove('hidden'); }
+        document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
     }
 
     async function sendMessage() {
@@ -207,16 +213,15 @@
       const text = input.value.trim();
       if (!text) return;
       input.value = '';
-      const ok = await insertMessage({ content_type: 'text', text_body: text });
-      if (ok) setStatus('✅ Message envoyé', 'ok');
+      const r = await insertMessage({ content_type: 'text', text_body: text });
+      if (r) setStatus('✅ Message envoyé', 'ok');
     }
 
-    // ---- ENVOI DE PHOTO ----
+    // ---- PHOTO ----
     document.getElementById('fileInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       setStatus('⏳ Préparation photo…', 'info');
-
       try {
         const img = new Image();
         const reader = new FileReader();
@@ -229,61 +234,40 @@
         canvas.width = img.width * ratio;
         canvas.height = img.height * ratio;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
-        setStatus('⏳ Upload photo (' + Math.round(blob.size/1024) + ' Ko)…', 'info');
 
+        setStatus('⏳ Upload photo…', 'info');
         const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
         const { error: upErr } = await supabaseClient.storage
           .from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
         if (upErr) throw upErr;
 
-        const ok = await insertMessage({ content_type: 'image', content_url: path });
-        if (ok) setStatus('✅ Photo envoyée', 'ok');
+        const r = await insertMessage({ content_type: 'image', content_url: path });
+        if (r) setStatus('✅ Photo envoyée', 'ok');
       } catch (err) {
-        console.error(err);
         setStatus('❌ Photo : ' + err.message, 'err');
-        alert('Erreur photo : ' + err.message);
-      } finally {
-        e.target.value = '';
-      }
+      } finally { e.target.value = ''; }
     });
 
     // ---- VOCAL ----
     document.getElementById('micBtn').addEventListener('click', async () => {
       if (isRecording) {
-        setStatus('⏹ Arrêt en cours…', 'info');
+        setStatus('⏹ Arrêt…', 'info');
         try { mediaRecorder.stop(); } catch(e) { setStatus('❌ ' + e.message, 'err'); }
         return;
       }
-
       try {
         setStatus('🎤 Autorisation micro…', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setStatus('🎤 Micro OK, démarrage…', 'info');
 
-        // Essayer plusieurs formats
         let mimeType = '';
-        const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
-        for (const opt of options) {
-          if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(opt)) {
-            mimeType = opt; break;
-          }
+        for (const opt of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
+          if (MediaRecorder.isTypeSupported(opt)) { mimeType = opt; break; }
         }
-        console.log('mimeType choisi:', mimeType || '(défaut)');
 
         mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         audioChunks = [];
-
-        mediaRecorder.ondataavailable = e => {
-          console.log('dataavailable size:', e.data.size);
-          if (e.data.size > 0) audioChunks.push(e.data);
-        };
-
-        mediaRecorder.onerror = (e) => {
-          console.error('recorder error', e);
-          setStatus('❌ Erreur recorder : ' + (e.error?.message || 'inconnue'), 'err');
-        };
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
@@ -292,14 +276,7 @@
           document.getElementById('micBtn').classList.remove('bg-red-500', 'text-white');
 
           const totalSize = audioChunks.reduce((a, c) => a + c.size, 0);
-          console.log('totalSize:', totalSize);
-          setStatus('📦 Blob total : ' + totalSize + ' octets', 'info');
-
-          if (totalSize < 500) {
-            setStatus('❌ Enregistrement vide (' + totalSize + ' o). Reformulez.', 'err');
-            alert('Enregistrement vide. Vérifie que le micro est autorisé et parle bien pendant 3 secondes.');
-            return;
-          }
+          if (totalSize < 500) { setStatus('❌ Enregistrement vide', 'err'); return; }
 
           try {
             const actualType = mediaRecorder.mimeType || mimeType || 'audio/webm';
@@ -307,18 +284,15 @@
             const ext = actualType.includes('mp4') ? 'm4a' : actualType.includes('ogg') ? 'ogg' : 'webm';
 
             setStatus('⏳ Upload vocal (' + Math.round(blob.size/1024) + ' Ko)…', 'info');
-
             const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
             const { error: upErr } = await supabaseClient.storage
               .from('chat-media').upload(path, blob, { contentType: actualType });
             if (upErr) throw upErr;
 
-            const ok = await insertMessage({ content_type: 'audio', content_url: path });
-            if (ok) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
+            const r = await insertMessage({ content_type: 'audio', content_url: path });
+            if (r) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
           } catch (err) {
-            console.error(err);
             setStatus('❌ Vocal : ' + err.message, 'err');
-            alert('Erreur vocal : ' + err.message);
           }
         };
 
@@ -327,11 +301,8 @@
         document.getElementById('micBtn').textContent = '⏹';
         document.getElementById('micBtn').classList.add('bg-red-500', 'text-white');
         setStatus('🔴 ENREGISTREMENT… Parle puis touche ⏹', 'rec');
-
       } catch (err) {
-        console.error(err);
         setStatus('❌ Micro : ' + err.message, 'err');
-        alert('Impossible d\'accéder au micro : ' + err.message);
       }
     });
 
@@ -345,7 +316,7 @@
     async function reportUser() {
       const reason = prompt('Raison :\n1. Comportement déplacé\n2. Faux profil\n3. Spam\n4. Autre');
       if (!reason) return;
-      const details = prompt('Précisez (optionnel) :') || '';
+      const details = prompt('Précisez :') || '';
       const { error } = await supabaseClient.from('reports').insert({
         reporter_id: currentUser.id, reported_id: otherUserId, reason, details
       });
