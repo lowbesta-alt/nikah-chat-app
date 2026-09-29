@@ -108,14 +108,12 @@
     function loadDeletedForMe() {
       try {
         const key = 'deleted_msgs_' + currentUser.id;
-        const arr = JSON.parse(localStorage.getItem(key) || '[]');
-        deletedForMe = new Set(arr);
+        deletedForMe = new Set(JSON.parse(localStorage.getItem(key) || '[]'));
       } catch(e) { deletedForMe = new Set(); }
     }
 
     function saveDeletedForMe() {
-      const key = 'deleted_msgs_' + currentUser.id;
-      localStorage.setItem(key, JSON.stringify([...deletedForMe]));
+      localStorage.setItem('deleted_msgs_' + currentUser.id, JSON.stringify([...deletedForMe]));
     }
 
     async function renderMessage(m, force = false) {
@@ -140,7 +138,6 @@
         content = url ? `<audio controls src="${url}" class="max-w-full" style="width:220px"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
       }
 
-      // Bouton ⋮ visible dans chaque bulle
       const menuBtn = `<button onclick="event.stopPropagation(); openMenu('${m.id}', ${mine});"
                               class="absolute top-1 ${mine ? 'left-1' : 'right-1'} w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center leading-none">⋮</button>`;
 
@@ -164,8 +161,7 @@
       selectedMsg = msgId;
       document.getElementById('msgMenu').classList.remove('hidden');
       const btn = document.getElementById('deleteAllBtn');
-      if (mine) btn.classList.remove('hidden');
-      else btn.classList.add('hidden');
+      if (mine) btn.classList.remove('hidden'); else btn.classList.add('hidden');
     }
 
     function closeMenu() {
@@ -187,18 +183,22 @@
     async function deleteForEveryone() {
       if (!selectedMsg) return;
       if (!confirm('Supprimer ce message pour TOUT LE MONDE ?')) return;
-
       const { error } = await supabaseClient.from('messages').delete().eq('id', selectedMsg);
-      if (error) {
-        setStatus('❌ ' + error.message, 'err');
-        closeMenu();
-        return;
-      }
+      if (error) { setStatus('❌ ' + error.message, 'err'); closeMenu(); return; }
       const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
       if (el) el.remove();
       closeMenu();
       setStatus('🗑️ Supprimé pour tout le monde', 'ok');
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
+    }
+
+    // 🔔 Marquer tous les messages reçus comme lus
+    async function markAllAsRead() {
+      await supabaseClient.from('messages')
+        .update({ is_read: true })
+        .eq('conversation_id', conversationId)
+        .neq('sender_id', currentUser.id)
+        .eq('is_read', false);
     }
 
     async function insertMessage(payload) {
@@ -252,6 +252,9 @@
         for (const m of msgs) await renderMessage(m);
       }
 
+      // 🔔 Marquer comme lu à l'ouverture
+      await markAllAsRead();
+
       await refreshQuota();
 
       channel = supabaseClient.channel('conv:' + conversationId)
@@ -259,6 +262,10 @@
           filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
           if (displayedIds.has(payload.new.id)) return;
           await renderMessage(payload.new);
+          // 🔔 Si c'est un message reçu, on le marque comme lu immédiatement (je suis dessus)
+          if (payload.new.sender_id !== currentUser.id) {
+            await supabaseClient.from('messages').update({ is_read: true }).eq('id', payload.new.id);
+          }
           refreshQuota();
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
@@ -308,19 +315,16 @@
         reader.onload = () => { img.src = reader.result; };
         reader.readAsDataURL(file);
         await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-
         const canvas = document.createElement('canvas');
         const ratio = Math.min(1, 1280 / Math.max(img.width, img.height));
         canvas.width = img.width * ratio;
         canvas.height = img.height * ratio;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
-
         const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
         const { error: upErr } = await supabaseClient.storage
           .from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
         if (upErr) throw upErr;
-
         const r = await insertMessage({ content_type: 'image', content_url: path });
         if (r) setStatus('✅ Photo envoyée', 'ok');
       } catch (err) { setStatus('❌ ' + err.message, 'err'); }
@@ -342,32 +346,26 @@
         mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         audioChunks = [];
         mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
           isRecording = false;
           document.getElementById('micBtn').textContent = '🎤';
           document.getElementById('micBtn').classList.remove('bg-red-500', 'text-white');
-
           const totalSize = audioChunks.reduce((a, c) => a + c.size, 0);
           if (totalSize < 500) { setStatus('❌ Enregistrement vide', 'err'); return; }
-
           try {
             const actualType = mediaRecorder.mimeType || mimeType || 'audio/webm';
             const blob = new Blob(audioChunks, { type: actualType });
             const ext = actualType.includes('mp4') ? 'm4a' : actualType.includes('ogg') ? 'ogg' : 'webm';
-
             setStatus('⏳ Upload vocal…', 'info');
             const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
             const { error: upErr } = await supabaseClient.storage
               .from('chat-media').upload(path, blob, { contentType: actualType });
             if (upErr) throw upErr;
-
             const r = await insertMessage({ content_type: 'audio', content_url: path });
             if (r) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
           } catch (err) { setStatus('❌ ' + err.message, 'err'); }
         };
-
         mediaRecorder.start();
         isRecording = true;
         document.getElementById('micBtn').textContent = '⏹';
