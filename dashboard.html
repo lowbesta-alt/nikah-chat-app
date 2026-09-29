@@ -91,6 +91,7 @@
   <script>
     const msg = document.getElementById('message');
     let currentUser = null;
+    let currentGender = 'male';
 
     function show(t, c) {
       msg.textContent = t;
@@ -113,6 +114,7 @@
       const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
 
       if (p) {
+        currentGender = p.gender || 'male';
         document.getElementById('username').value = p.username || '';
         document.getElementById('birth_date').value = p.birth_date || '';
         document.getElementById('country').value = p.country || '';
@@ -131,31 +133,17 @@
       if (!currentUser) return;
 
       const data = {
-// On récupère le genre depuis le profil existant
-const { data: existing } = await supabaseClient
-  .from('profiles')
-  .select('gender')
-  .eq('id', currentUser.id)
-  .single();
+        id: currentUser.id,
+        username: document.getElementById('username').value.trim(),
+        gender: currentGender,
+        birth_date: document.getElementById('birth_date').value || null,
+        country: document.getElementById('country').value.trim() || null,
+        city: document.getElementById('city').value.trim() || null,
+        religiosity_level: document.getElementById('religiosity_level').value || null,
+        marital_status: document.getElementById('marital_status').value || null,
+        bio: document.getElementById('bio').value.trim() || null
+      };
 
-// On récupère le genre depuis le profil existant
-const { data: existing } = await supabaseClient
-  .from('profiles')
-  .select('gender')
-  .eq('id', currentUser.id)
-  .single();
-
-const data = {
-  id: currentUser.id,
-  username: document.getElementById('username').value.trim(),
-  gender: existing?.gender || 'male',
-  birth_date: document.getElementById('birth_date').value || null,
-  country: document.getElementById('country').value.trim() || null,
-  city: document.getElementById('city').value.trim() || null,
-  religiosity_level: document.getElementById('religiosity_level').value || null,
-  marital_status: document.getElementById('marital_status').value || null,
-  bio: document.getElementById('bio').value.trim() || null
-};
       const { error } = await supabaseClient.from('profiles').upsert(data, { onConflict: 'id' });
 
       if (error) show('❌ ' + error.message, 'err');
