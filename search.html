@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recherche — InshaAllah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-emerald-50 min-h-screen">
+  <header class="bg-white shadow-sm">
+    <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2 font-bold text-emerald-700">
+        <span class="text-xl">🌙</span><span>InshaAllah</span>
+      </div>
+      <nav class="flex items-center gap-4 text-sm">
+        <a href="dashboard.html" class="text-slate-600 hover:text-emerald-700">Profil</a>
+        <a href="chat.html" class="text-slate-600 hover:text-emerald-700">Messages</a>
+        <button onclick="logout()" class="text-red-600 hover:underline">Déconnexion</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-4">
+    <h1 class="text-xl font-bold mb-4">Rechercher des profils</h1>
+
+    <form id="searchForm" class="bg-white rounded-2xl shadow p-4 mb-6 grid grid-cols-2 gap-3">
+      <select id="filter_gender" class="px-3 py-2 border rounded-lg bg-white">
+        <option value="">Genre</option>
+        <option value="male">Homme</option>
+        <option value="female">Femme</option>
+      </select>
+      <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
+      <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
+      <select id="filter_religiosity" class="px-3 py-2 border rounded-lg bg-white">
+        <option value="">Pratique</option>
+        <option value="modere">Modéré</option>
+        <option value="pratiquant">Pratiquant</option>
+        <option value="tres_pratiquant">Très pratiquant</option>
+      </select>
+      <button type="submit" class="col-span-2 bg-emerald-600 text-white py-2 rounded-lg font-semibold">
+        Rechercher
+      </button>
+    </form>
+
+    <div id="results" class="space-y-3"></div>
+  </main>
+
+  <script>
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      window.location.href = 'index.html';
+    }
+
+    async function search(filters = {}) {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = 'login.html'; return; }
+
+      let q = supabaseClient.from('profiles').select('*').neq('id', user.id);
+      if (filters.gender) q = q.eq('gender', filters.gender);
+      if (filters.country) q = q.ilike('country', '%' + filters.country + '%');
+      if (filters.city) q = q.ilike('city', '%' + filters.city + '%');
+      if (filters.religiosity) q = q.eq('religiosity_level', filters.religiosity);
+
+      const { data, error } = await q.limit(30);
+      const results = document.getElementById('results');
+
+      if (error) { results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>'; return; }
+      if (!data.length) { results.innerHTML = '<p class="text-slate-500 text-center">Aucun profil trouvé.</p>'; return; }
+
+      results.innerHTML = data.map(p => `
+        <div class="bg-white rounded-xl shadow p-4 flex items-center justify-between">
+          <div>
+            <p class="font-semibold">${p.username || 'Anonyme'}</p>
+            <p class="text-sm text-slate-500">
+              ${p.city || ''}${p.city && p.country ? ', ' : ''}${p.country || ''}
+              ${p.religiosity_level ? ' · ' + p.religiosity_level : ''}
+            </p>
+          </div>
+          <a href="chat.html?user=${p.id}" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg">
+            Discuter
+          </a>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('searchForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      search({
+        gender: document.getElementById('filter_gender').value,
+        country: document.getElementById('filter_country').value.trim(),
+        city: document.getElementById('filter_city').value.trim(),
+        religiosity: document.getElementById('filter_religiosity').value
+      });
+    });
+
+    // Chargement initial
+    search();
+  </script>
+</body>
+</html>
