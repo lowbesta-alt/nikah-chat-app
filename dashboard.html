@@ -146,8 +146,12 @@
 
       const { error } = await supabaseClient.from('profiles').upsert(data, { onConflict: 'id' });
 
-      if (error) show('❌ ' + error.message, 'err');
-      else show('✅ Profil enregistré !', 'ok');
+      if (error) {
+        show('❌ ' + error.message, 'err');
+      } else {
+        show('✅ Profil enregistré ! Redirection vers la recherche…', 'ok');
+        setTimeout(() => { window.location.href = 'search.html'; }, 1500);
+      }
     });
   </script>
 </body>
