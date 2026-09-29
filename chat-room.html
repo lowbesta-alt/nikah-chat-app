@@ -18,7 +18,7 @@
 
   <header class="bg-white shadow-sm shrink-0 safe-top">
     <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
-      <a href="chat.html" class="text-emerald-700 font-bold text-xl px-1">←</a>
+      <a href="chat.html" class="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-full whitespace-nowrap active:bg-emerald-700">← Menu</a>
       <div class="flex-1 min-w-0">
         <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
         <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
@@ -192,7 +192,6 @@
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
     }
 
-    // 🔔 Marquer tous les messages reçus comme lus
     async function markAllAsRead() {
       await supabaseClient.from('messages')
         .update({ is_read: true })
@@ -252,9 +251,7 @@
         for (const m of msgs) await renderMessage(m);
       }
 
-      // 🔔 Marquer comme lu à l'ouverture
       await markAllAsRead();
-
       await refreshQuota();
 
       channel = supabaseClient.channel('conv:' + conversationId)
@@ -262,7 +259,6 @@
           filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
           if (displayedIds.has(payload.new.id)) return;
           await renderMessage(payload.new);
-          // 🔔 Si c'est un message reçu, on le marque comme lu immédiatement (je suis dessus)
           if (payload.new.sender_id !== currentUser.id) {
             await supabaseClient.from('messages').update({ is_read: true }).eq('id', payload.new.id);
           }
