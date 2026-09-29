@@ -2,49 +2,71 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Conversation — InshaAllah</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <style>
+    html, body { height: 100%; overscroll-behavior: none; }
+    body { height: 100dvh; } /* Dynamic viewport height — meilleur pour Android */
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+    .safe-top { padding-top: env(safe-area-inset-top, 0); }
+  </style>
 </head>
-<body class="bg-slate-100 h-screen flex flex-col">
+<body class="bg-slate-100 flex flex-col">
 
-  <header class="bg-white shadow-sm shrink-0">
-    <div class="max-w-3xl mx-auto flex items-center gap-3 px-4 py-3">
-      <a href="chat.html" class="text-emerald-700 font-bold text-xl">←</a>
+  <header class="bg-white shadow-sm shrink-0 safe-top">
+    <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
+      <a href="chat.html" class="text-emerald-700 font-bold text-xl px-1">←</a>
       <div class="flex-1 min-w-0">
-        <p class="font-semibold text-slate-800 truncate" id="otherName">Chargement…</p>
+        <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
         <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
       </div>
-      <button onclick="reportUser()" class="text-red-500 text-xl">🚩</button>
-      <span id="quota" class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
+      <button onclick="reportUser()" class="text-red-500 text-lg px-1">🚩</button>
+      <span id="quota" class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
     </div>
   </header>
 
-  <div id="statusBar" class="text-xs text-center py-2 px-3 shrink-0 bg-slate-200 text-slate-600">Prêt</div>
+  <div id="statusBar" class="text-[11px] text-center py-1 px-3 shrink-0 bg-slate-200 text-slate-600">Prêt</div>
 
-  <main id="messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 max-w-3xl w-full mx-auto"></main>
+  <main id="messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 max-w-3xl w-full mx-auto min-h-0"></main>
 
-  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
-    <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 10 messages gratuits.</p>
-    <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-semibold">
+  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-3 text-center shrink-0">
+    <p class="text-xs text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 10 messages gratuits.</p>
+    <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
       💳 Débloquer pour 600 FCFA
     </button>
   </div>
 
-  <footer id="composer" class="bg-white border-t shrink-0">
-    <div class="max-w-3xl mx-auto flex items-center gap-2 p-3">
+  <footer id="composer" class="bg-white border-t shrink-0 safe-bottom">
+    <div class="max-w-3xl mx-auto flex items-center gap-2 p-2">
       <input type="file" id="fileInput" accept="image/*" hidden>
       <button onclick="document.getElementById('fileInput').click()"
-              class="w-11 h-11 rounded-full bg-slate-100 text-lg shrink-0">📷</button>
-      <button id="micBtn" class="w-11 h-11 rounded-full bg-slate-100 text-lg shrink-0">🎤</button>
+              class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">📷</button>
+      <button id="micBtn" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">🎤</button>
       <input type="text" id="input" placeholder="Écrivez…"
-             class="flex-1 px-4 py-3 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0">
+             class="flex-1 px-3 py-2 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0 text-sm">
       <button id="sendBtn" onclick="sendMessage()"
-              class="bg-emerald-600 text-white w-12 h-12 rounded-full font-bold text-lg shrink-0">➤</button>
+              class="bg-emerald-600 text-white w-10 h-10 rounded-full font-bold text-base shrink-0">➤</button>
     </div>
   </footer>
+
+  <!-- MENU de suppression (bottom sheet) -->
+  <div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/40 flex items-end">
+    <div class="w-full bg-white rounded-t-2xl p-4 safe-bottom">
+      <p class="text-xs text-slate-500 text-center mb-3">Que faire de ce message ?</p>
+      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium">
+        🗑️ Supprimer pour moi
+      </button>
+      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium">
+        🗑️ Supprimer pour tout le monde
+      </button>
+      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm">
+        Annuler
+      </button>
+    </div>
+  </div>
 
   <script>
     let currentUser = null;
@@ -54,9 +76,12 @@
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
+    let selectedMsg = null;
 
-    // 🔑 Set des IDs déjà affichés (pour éviter doublons realtime + local)
     const displayedIds = new Set();
+
+    // Set des messages supprimés POUR MOI (localStorage par utilisateur)
+    let deletedForMe = new Set();
 
     const params = new URLSearchParams(window.location.search);
     otherUserId = params.get('user');
@@ -64,7 +89,7 @@
     function setStatus(text, type) {
       const bar = document.getElementById('statusBar');
       bar.textContent = text;
-      bar.className = 'text-xs text-center py-2 px-3 shrink-0 ' + (
+      bar.className = 'text-[11px] text-center py-1 px-3 shrink-0 ' + (
         type === 'ok' ? 'bg-emerald-100 text-emerald-800'
         : type === 'err' ? 'bg-red-100 text-red-800'
         : type === 'rec' ? 'bg-red-500 text-white font-bold'
@@ -79,16 +104,28 @@
     async function signedUrl(path) {
       const { data, error } = await supabaseClient.storage
         .from('chat-media').createSignedUrl(path, 3600);
-      if (error) { console.error('signedUrl err', error); return null; }
+      if (error) { console.error(error); return null; }
       return data.signedUrl;
     }
 
+    function loadDeletedForMe() {
+      try {
+        const key = 'deleted_msgs_' + currentUser.id;
+        const arr = JSON.parse(localStorage.getItem(key) || '[]');
+        deletedForMe = new Set(arr);
+      } catch(e) { deletedForMe = new Set(); }
+    }
+
+    function saveDeletedForMe() {
+      const key = 'deleted_msgs_' + currentUser.id;
+      localStorage.setItem(key, JSON.stringify([...deletedForMe]));
+    }
+
     async function renderMessage(m, force = false) {
-      // Éviter les doublons
       if (!force && displayedIds.has(m.id)) return;
+      if (deletedForMe.has(m.id)) return;
       displayedIds.add(m.id);
 
-      // Retirer le message "vide" initial
       const emptyMsg = document.getElementById('emptyMsg');
       if (emptyMsg) emptyMsg.remove();
 
@@ -103,14 +140,15 @@
         content = url ? `<img src="${url}" class="max-w-full rounded-lg">` : `<p class="italic text-xs">[image indisponible]</p>`;
       } else if (m.content_type === 'audio') {
         const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
-        content = url ? `<audio controls src="${url}" class="max-w-full"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
+        content = url ? `<audio controls src="${url}" class="max-w-full" style="width:220px"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
       }
 
       const html = `
         <div class="flex ${mine ? 'justify-end' : 'justify-start'}" data-msg-id="${m.id}">
-          <div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm ${mine
+          <div class="max-w-[80%] px-3 py-2 rounded-2xl text-sm cursor-pointer ${mine
             ? 'bg-emerald-600 text-white rounded-br-md'
-            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}">
+            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}"
+            onclick="openMenu('${m.id}', ${mine})">
             ${content}
             <p class="text-[10px] mt-1 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</p>
           </div>
@@ -119,8 +157,50 @@
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
 
+    // ---- MENU DE SUPPRESSION ----
+    function openMenu(msgId, mine) {
+      selectedMsg = msgId;
+      document.getElementById('msgMenu').classList.remove('hidden');
+      const btn = document.getElementById('deleteAllBtn');
+      if (mine) btn.classList.remove('hidden');
+      else btn.classList.add('hidden');
+    }
+
+    function closeMenu() {
+      document.getElementById('msgMenu').classList.add('hidden');
+      selectedMsg = null;
+    }
+
+    function deleteForMe() {
+      if (!selectedMsg) return;
+      deletedForMe.add(selectedMsg);
+      saveDeletedForMe();
+      // Retirer visuellement
+      const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
+      if (el) el.remove();
+      closeMenu();
+      setStatus('🗑️ Message supprimé pour vous', 'ok');
+      setTimeout(() => setStatus('Prêt', 'info'), 2000);
+    }
+
+    async function deleteForEveryone() {
+      if (!selectedMsg) return;
+      if (!confirm('Supprimer ce message pour TOUT LE MONDE ?')) return;
+
+      const { error } = await supabaseClient.from('messages').delete().eq('id', selectedMsg);
+      if (error) {
+        setStatus('❌ ' + error.message, 'err');
+        closeMenu();
+        return;
+      }
+      const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
+      if (el) el.remove();
+      closeMenu();
+      setStatus('🗑️ Message supprimé pour tout le monde', 'ok');
+      setTimeout(() => setStatus('Prêt', 'info'), 2000);
+    }
+
     async function insertMessage(payload) {
-      // 🔑 On insère ET on récupère la ligne créée
       const { data, error } = await supabaseClient.from('messages').insert({
         conversation_id: conversationId,
         sender_id: currentUser.id,
@@ -131,13 +211,9 @@
         if (error.message.includes('QUOTA_REACHED')) {
           document.getElementById('paywall').classList.remove('hidden');
           document.getElementById('composer').classList.add('hidden');
-        } else {
-          setStatus('❌ BDD : ' + error.message, 'err');
-        }
+        } else setStatus('❌ ' + error.message, 'err');
         return null;
       }
-
-      // ✅ Affichage IMMÉDIAT (sans attendre le realtime)
       await renderMessage(data);
       return data;
     }
@@ -146,6 +222,7 @@
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
       currentUser = user;
+      loadDeletedForMe();
 
       if (!otherUserId) { setStatus('❌ Utilisateur non précisé', 'err'); return; }
 
@@ -169,20 +246,24 @@
       document.getElementById('messages').innerHTML = '';
       if (!msgs || !msgs.length) {
         document.getElementById('messages').innerHTML =
-          '<p class="text-center text-slate-400 text-sm py-10" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';
+          '<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';
       } else {
         for (const m of msgs) await renderMessage(m);
       }
 
       await refreshQuota();
 
-      // Realtime pour les messages REÇUS des autres
       channel = supabaseClient.channel('conv:' + conversationId)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
           filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
-          if (displayedIds.has(payload.new.id)) return; // déjà affiché par nous
+          if (displayedIds.has(payload.new.id)) return;
           await renderMessage(payload.new);
           refreshQuota();
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
+          // Suppression reçue d'un autre utilisateur
+          const el = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
+          if (el) el.remove();
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations',
           filter: 'id=eq.' + conversationId }, (payload) => updateQuotaUI(payload.new))
@@ -200,11 +281,11 @@
     function updateQuotaUI(conv) {
       const locked = !conv.is_unlocked && conv.message_count >= 10;
       const q = document.getElementById('quota');
-      if (conv.is_unlocked) { q.textContent = 'Illimité ✓'; q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
+      if (conv.is_unlocked) { q.textContent = 'Illimité ✓'; q.className = 'text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
-      else if (locked) { q.textContent = '10/10'; q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
+      else if (locked) { q.textContent = '10/10'; q.className = 'text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
         document.getElementById('paywall').classList.remove('hidden'); document.getElementById('composer').classList.add('hidden'); }
-      else { const r = 10 - conv.message_count; q.textContent = r + ' msg' + (r>1?'s':''); q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
+      else { const r = 10 - conv.message_count; q.textContent = r + ' msg' + (r>1?'s':''); q.className = 'text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
     }
 
@@ -214,14 +295,13 @@
       if (!text) return;
       input.value = '';
       const r = await insertMessage({ content_type: 'text', text_body: text });
-      if (r) setStatus('✅ Message envoyé', 'ok');
+      if (r) setStatus('✅ Envoyé', 'ok');
     }
 
-    // ---- PHOTO ----
     document.getElementById('fileInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      setStatus('⏳ Préparation photo…', 'info');
+      setStatus('⏳ Photo…', 'info');
       try {
         const img = new Image();
         const reader = new FileReader();
@@ -236,7 +316,6 @@
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
 
-        setStatus('⏳ Upload photo…', 'info');
         const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
         const { error: upErr } = await supabaseClient.storage
           .from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
@@ -244,27 +323,22 @@
 
         const r = await insertMessage({ content_type: 'image', content_url: path });
         if (r) setStatus('✅ Photo envoyée', 'ok');
-      } catch (err) {
-        setStatus('❌ Photo : ' + err.message, 'err');
-      } finally { e.target.value = ''; }
+      } catch (err) { setStatus('❌ ' + err.message, 'err'); }
+      finally { e.target.value = ''; }
     });
 
-    // ---- VOCAL ----
     document.getElementById('micBtn').addEventListener('click', async () => {
       if (isRecording) {
-        setStatus('⏹ Arrêt…', 'info');
         try { mediaRecorder.stop(); } catch(e) { setStatus('❌ ' + e.message, 'err'); }
         return;
       }
       try {
-        setStatus('🎤 Autorisation micro…', 'info');
+        setStatus('🎤 Micro…', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
         let mimeType = '';
         for (const opt of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
           if (MediaRecorder.isTypeSupported(opt)) { mimeType = opt; break; }
         }
-
         mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         audioChunks = [];
         mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
@@ -283,7 +357,7 @@
             const blob = new Blob(audioChunks, { type: actualType });
             const ext = actualType.includes('mp4') ? 'm4a' : actualType.includes('ogg') ? 'ogg' : 'webm';
 
-            setStatus('⏳ Upload vocal (' + Math.round(blob.size/1024) + ' Ko)…', 'info');
+            setStatus('⏳ Upload vocal…', 'info');
             const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
             const { error: upErr } = await supabaseClient.storage
               .from('chat-media').upload(path, blob, { contentType: actualType });
@@ -291,26 +365,22 @@
 
             const r = await insertMessage({ content_type: 'audio', content_url: path });
             if (r) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
-          } catch (err) {
-            setStatus('❌ Vocal : ' + err.message, 'err');
-          }
+          } catch (err) { setStatus('❌ ' + err.message, 'err'); }
         };
 
         mediaRecorder.start();
         isRecording = true;
         document.getElementById('micBtn').textContent = '⏹';
         document.getElementById('micBtn').classList.add('bg-red-500', 'text-white');
-        setStatus('🔴 ENREGISTREMENT… Parle puis touche ⏹', 'rec');
-      } catch (err) {
-        setStatus('❌ Micro : ' + err.message, 'err');
-      }
+        setStatus('🔴 Enregistrement… Touche ⏹', 'rec');
+      } catch (err) { setStatus('❌ Micro : ' + err.message, 'err'); }
     });
 
     async function unlockConversation() {
       if (!confirm('Débloquer pour 600 FCFA / 1 $ ?')) return;
       const { data, error } = await supabaseClient.rpc('unlock_conversation', { p_conversation_id: conversationId });
       if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-      if (data) { setStatus('✅ Conversation débloquée !', 'ok'); await refreshQuota(); }
+      if (data) { setStatus('✅ Débloqué !', 'ok'); await refreshQuota(); }
     }
 
     async function reportUser() {
