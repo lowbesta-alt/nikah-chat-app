@@ -13,14 +13,17 @@
   <header class="bg-white shadow-sm shrink-0">
     <div class="max-w-3xl mx-auto flex items-center gap-3 px-4 py-3">
       <a href="chat.html" class="text-emerald-700 font-bold text-xl">←</a>
-      <div class="flex-1">
-        <p class="font-semibold text-slate-800" id="otherName">Chargement…</p>
-        <p class="text-xs text-slate-500" id="otherInfo"></p>
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-slate-800 truncate" id="otherName">Chargement…</p>
+        <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
       </div>
       <button onclick="reportUser()" class="text-red-500 text-xl" title="Signaler">🚩</button>
-      <span id="quota" class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700"></span>
+      <span id="quota" class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
     </div>
   </header>
+
+  <!-- Bandeau d'état visible (debug) -->
+  <div id="statusBar" class="hidden text-xs text-center py-1.5 px-3 shrink-0"></div>
 
   <main id="messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 max-w-3xl w-full mx-auto"></main>
 
@@ -65,7 +68,19 @@
       return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
-    function renderMessage(m) {
+    // Bandeau d'état (aide au diagnostic)
+    function setStatus(text, type) {
+      const bar = document.getElementById('statusBar');
+      if (!text) { bar.classList.add('hidden'); return; }
+      bar.textContent = text;
+      bar.className = 'text-xs text-center py-1.5 px-3 shrink-0 ' + (
+        type === 'ok' ? 'bg-emerald-100 text-emerald-800'
+        : type === 'err' ? 'bg-red-100 text-red-800'
+        : 'bg-amber-100 text-amber-800'
+      );
+    }
+
+    async function renderMessage(m) {
       const mine = m.sender_id === currentUser.id;
       const time = new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -73,9 +88,16 @@
       if (m.content_type === 'text') {
         content = `<p class="whitespace-pre-wrap break-words">${escapeHtml(m.text_body)}</p>`;
       } else if (m.content_type === 'image') {
-        content = `<img src="${m.content_url}" class="max-w-full rounded-lg cursor-pointer" onclick="window.open('${m.content_url}','_blank')">`;
+        // URL stockée = chemin dans bucket privé → générer une URL signée
+        const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
+        content = url
+          ? `<img src="${url}" class="max-w-full rounded-lg cursor-pointer" onclick="window.open('${url}','_blank')">`
+          : `<p class="italic text-xs">[image indisponible]</p>`;
       } else if (m.content_type === 'audio') {
-        content = `<audio controls src="${m.content_url}" class="max-w-full"></audio>`;
+        const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
+        content = url
+          ? `<audio controls src="${url}" class="max-w-full"></audio>`
+          : `<p class="italic text-xs">[audio indisponible]</p>`;
       }
 
       const html = `
@@ -89,6 +111,14 @@
         </div>`;
       document.getElementById('messages').insertAdjacentHTML('beforeend', html);
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    async function signedUrl(path) {
+      const { data, error } = await supabaseClient.storage
+        .from('chat-media')
+        .createSignedUrl(path, 3600);
+      if (error) { console.error('signedUrl error', error); return null; }
+      return data.signedUrl;
     }
 
     async function init() {
@@ -129,7 +159,7 @@
         document.getElementById('messages').innerHTML =
           '<p class="text-center text-slate-400 text-sm py-10" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message courtois.</p>';
       } else {
-        msgs.forEach(renderMessage);
+        for (const m of msgs) await renderMessage(m);
       }
 
       await refreshQuota();
@@ -138,10 +168,10 @@
         .on('postgres_changes', {
           event: 'INSERT', schema: 'public', table: 'messages',
           filter: 'conversation_id=eq.' + conversationId
-        }, (payload) => {
+        }, async (payload) => {
           const emptyMsg = document.getElementById('emptyMsg');
           if (emptyMsg) emptyMsg.remove();
-          renderMessage(payload.new);
+          await renderMessage(payload.new);
           refreshQuota();
         })
         .on('postgres_changes', {
@@ -163,18 +193,18 @@
 
       if (conv.is_unlocked) {
         q.textContent = 'Illimité ✓';
-        q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700';
+        q.className = 'text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden');
         document.getElementById('composer').classList.remove('hidden');
       } else if (locked) {
         q.textContent = '10/10';
-        q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700';
+        q.className = 'text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
         document.getElementById('paywall').classList.remove('hidden');
         document.getElementById('composer').classList.add('hidden');
       } else {
         const remain = 10 - conv.message_count;
         q.textContent = remain + ' msg' + (remain > 1 ? 's' : '');
-        q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700';
+        q.className = 'text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
         document.getElementById('paywall').classList.add('hidden');
         document.getElementById('composer').classList.remove('hidden');
       }
@@ -200,7 +230,7 @@
           document.getElementById('composer').classList.add('hidden');
           await refreshQuota();
         } else {
-          alert('Erreur : ' + error.message);
+          setStatus('❌ ' + error.message, 'err');
         }
       }
     }
@@ -209,35 +239,42 @@
     document.getElementById('fileInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      if (file.size > 5 * 1024 * 1024) { alert('Photo trop lourde (max 5 Mo)'); return; }
+      setStatus('⏳ Préparation de la photo…', 'info');
 
-      // Compression
-      const canvas = document.createElement('canvas');
-      const img = new Image();
-      const reader = new FileReader();
-      reader.onload = () => { img.src = reader.result; };
-      reader.readAsDataURL(file);
+      try {
+        // Compression
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => { img.src = reader.result; };
+        reader.readAsDataURL(file);
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
 
-      await new Promise(res => { img.onload = res; });
+        const canvas = document.createElement('canvas');
+        const ratio = Math.min(1, 1280 / Math.max(img.width, img.height));
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      const ratio = Math.min(1, 1280 / Math.max(img.width, img.height));
-      canvas.width = img.width * ratio;
-      canvas.height = img.height * ratio;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+        setStatus('⏳ Envoi de la photo…', 'info');
 
-      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+        const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
+        const { error: upErr } = await supabaseClient.storage
+          .from('chat-media')
+          .upload(path, blob, { contentType: 'image/jpeg' });
 
-      const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
-      const { error: upErr } = await supabaseClient.storage
-        .from('chat-media')
-        .upload(path, blob, { contentType: 'image/jpeg' });
+        if (upErr) throw upErr;
 
-      if (upErr) { alert('Erreur upload : ' + upErr.message); return; }
-
-      const { data: pub } = supabaseClient.storage.from('chat-media').getPublicUrl(path);
-      await insertMessage({ content_type: 'image', content_url: pub.publicUrl });
-
-      e.target.value = '';
+        // On stocke le CHEMIN (pas l'URL) car le bucket est privé
+        await insertMessage({ content_type: 'image', content_url: path });
+        setStatus('✅ Photo envoyée', 'ok');
+        setTimeout(() => setStatus(''), 2000);
+      } catch (err) {
+        console.error(err);
+        setStatus('❌ Photo : ' + err.message, 'err');
+      } finally {
+        e.target.value = '';
+      }
     });
 
     // ---- ENREGISTREMENT VOCAL ----
@@ -248,12 +285,20 @@
       }
 
       try {
+        setStatus('🎤 Autorisation micro…', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+
+        // Choisir un format supporté
+        let mimeType = 'audio/webm';
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
         recordingStart = Date.now();
 
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
 
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
@@ -261,26 +306,42 @@
           document.getElementById('micBtn').textContent = '🎤';
           document.getElementById('micBtn').classList.remove('bg-red-500', 'text-white');
 
-          const blob = new Blob(audioChunks, { type: 'audio/webm' });
-          if (blob.size < 1000) return;
+          const blob = new Blob(audioChunks, { type: mimeType });
+          if (blob.size < 500) {
+            setStatus('⚠️ Enregistrement trop court', 'err');
+            setTimeout(() => setStatus(''), 2500);
+            return;
+          }
 
-          const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.webm';
-          const { error: upErr } = await supabaseClient.storage
-            .from('chat-media')
-            .upload(path, blob, { contentType: 'audio/webm' });
+          setStatus('⏳ Envoi du vocal…', 'info');
 
-          if (upErr) { alert('Erreur vocal : ' + upErr.message); return; }
+          try {
+            const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+            const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
 
-          const { data: pub } = supabaseClient.storage.from('chat-media').getPublicUrl(path);
-          await insertMessage({ content_type: 'audio', content_url: pub.publicUrl });
+            const { error: upErr } = await supabaseClient.storage
+              .from('chat-media')
+              .upload(path, blob, { contentType: mimeType });
+
+            if (upErr) throw upErr;
+
+            await insertMessage({ content_type: 'audio', content_url: path });
+            setStatus('✅ Vocal envoyé', 'ok');
+            setTimeout(() => setStatus(''), 2000);
+          } catch (err) {
+            console.error(err);
+            setStatus('❌ Vocal : ' + err.message, 'err');
+          }
         };
 
         mediaRecorder.start();
         isRecording = true;
         document.getElementById('micBtn').textContent = '⏹';
         document.getElementById('micBtn').classList.add('bg-red-500', 'text-white');
+        setStatus('🔴 Enregistrement en cours… Touchez ⏹ pour envoyer', 'info');
       } catch (err) {
-        alert('Micro inaccessible : ' + err.message);
+        console.error(err);
+        setStatus('❌ Micro : ' + err.message, 'err');
       }
     });
 
@@ -290,10 +351,11 @@
       const { data, error } = await supabaseClient.rpc('unlock_conversation', {
         p_conversation_id: conversationId
       });
-      if (error) { alert('Erreur : ' + error.message); return; }
+      if (error) { setStatus('❌ ' + error.message, 'err'); return; }
       if (data) {
-        alert('✅ Conversation débloquée !');
+        setStatus('✅ Conversation débloquée !', 'ok');
         await refreshQuota();
+        setTimeout(() => setStatus(''), 2500);
       }
     }
 
