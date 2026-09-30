@@ -9,18 +9,19 @@
   <script src="config.js"></script>
 </head>
 <body class="bg-emerald-50 min-h-screen">
-  <header class="bg-white shadow-sm">
+  <header class="bg-white shadow-sm sticky top-0 z-40">
     <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
-      <nav class="flex items-center gap-4 text-sm">
-        <a href="search.html" class="text-slate-600 hover:text-emerald-700">🔍</a>
-        <a href="chat.html" class="relative text-slate-600 text-lg">
+      <nav class="flex items-center gap-3">
+        <a href="search.html" class="text-2xl" title="Rechercher">🔍</a>
+        <a href="chat.html" class="relative text-2xl" title="Messages">
           🔔
-          <span id="notifBadge" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
         </a>
-        <button onclick="logout()" class="text-red-600 text-sm">Déco</button>
+        <a href="admin.html" id="adminBtn" class="hidden text-2xl" title="Admin">⚙️</a>
+        <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
       </nav>
     </div>
   </header>
@@ -49,7 +50,6 @@
 
     <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 class="font-bold text-lg">Mon profil</h2>
-
       <div>
         <label class="block text-sm font-medium mb-1">Pseudo</label>
         <input type="text" id="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
@@ -160,37 +160,35 @@
         : 'bg-red-50 text-red-700 border border-red-200');
       msg.classList.remove('hidden');
     }
-
     function showAvatar(t, c) {
       avatarMsg.textContent = t;
       avatarMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok'
         ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
       avatarMsg.classList.remove('hidden');
     }
-
     function toggleChildren() {
       const v = document.getElementById('has_children').value === 'true';
       document.getElementById('childrenCountDiv').classList.toggle('hidden', !v);
     }
-
     function setAvatarPreview(url, username) {
       const box = document.getElementById('avatarPreview');
       if (url) box.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
       else box.innerHTML = '<span class="text-3xl text-emerald-700 font-bold">' + (username ? username.charAt(0).toUpperCase() : '?') + '</span>';
     }
-
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
-
-    // 🔔 Compter les non-lus
     async function loadNotifBadge() {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) return;
-      const { count } = await supabaseClient
-        .from('messages').select('*', { count: 'exact', head: true })
-        .eq('is_read', false).neq('sender_id', user.id);
+      const { data: convs } = await supabaseClient.from('conversations').select('id')
+        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+      if (!convs || !convs.length) return;
+      const convIds = convs.map(c => c.id);
+      const { count } = await supabaseClient.from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
       const badge = document.getElementById('notifBadge');
       if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
       else badge.classList.add('hidden');
@@ -220,9 +218,12 @@
       if (!user) { window.location.href = 'login.html'; return; }
       currentUser = user;
       loadNotifBadge();
+      setInterval(loadNotifBadge, 15000);
 
       const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
       if (p) {
+        // Afficher le bouton admin si admin
+        if (p.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
         currentGender = p.gender || 'male';
         currentAvatarUrl = p.avatar_url;
         document.getElementById('username').value = p.username || '';
