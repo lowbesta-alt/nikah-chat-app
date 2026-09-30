@@ -72,6 +72,8 @@
     let currentUser = null;
     let conversationId = null;
     let otherUserId = null;
+    let otherUserName = '';
+    let isSeedProfile = false;
     let channel = null;
     let mediaRecorder = null;
     let audioChunks = [];
@@ -91,6 +93,7 @@
         type === 'ok' ? 'bg-emerald-100 text-emerald-800'
         : type === 'err' ? 'bg-red-100 text-red-800'
         : type === 'rec' ? 'bg-red-500 text-white font-bold'
+        : type === 'typing' ? 'bg-blue-100 text-blue-800'
         : 'bg-slate-200 text-slate-600'
       );
     }
@@ -100,8 +103,7 @@
     }
 
     async function signedUrl(path) {
-      const { data, error } = await supabaseClient.storage
-        .from('chat-media').createSignedUrl(path, 3600);
+      const { data, error } = await supabaseClient.storage.from('chat-media').createSignedUrl(path, 3600);
       if (error) { console.error(error); return null; }
       return data.signedUrl;
     }
@@ -112,10 +114,125 @@
         deletedForMe = new Set(JSON.parse(localStorage.getItem(key) || '[]'));
       } catch(e) { deletedForMe = new Set(); }
     }
-
     function saveDeletedForMe() {
       localStorage.setItem('deleted_msgs_' + currentUser.id, JSON.stringify([...deletedForMe]));
     }
+
+    // ============================================================
+    // 🤖 SYSTÈME DE RÉPONSES AUTOMATIQUES (profils de démo)
+    // ============================================================
+    const MAX_AUTO_REPLIES = 5;
+
+    function getAutoReplyCount() {
+      const key = 'auto_replies_' + conversationId;
+      return parseInt(localStorage.getItem(key) || '0');
+    }
+    function incrementAutoReplyCount() {
+      const key = 'auto_replies_' + conversationId;
+      localStorage.setItem(key, (getAutoReplyCount() + 1).toString());
+    }
+
+    function generateReply(userText, count) {
+      const t = (userText || '').toLowerCase();
+
+      // Détection des mots-clés
+      const isGreeting = /salam|salem|salut|bonjour|bonsoir|coucou|hello|hi/i.test(t);
+      const isMarriageQuestion = /mariage|marier|épous|nikah|foyer|moitié/i.test(t);
+      const isAboutMe = /qui|présente|parle.*moi|connaître|toi/i.test(t);
+      const isAboutFamily = /famille|enfant|parent|père|mère/i.test(t);
+      const isAboutReligion = /islam|religio|prière|coran|allah|foi|pratique/i.test(t);
+      const isCompliment = /belle|beau|jolie|sérieux|bien|intéressant/i.test(t);
+
+      // 1) Salutations (priorité maximale au début)
+      if (isGreeting && count === 0) {
+        return "Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?";
+      }
+      if (isGreeting && count > 0) {
+        return "Salam 😊 Ravie de vous lire à nouveau.";
+      }
+
+      // 2) Question sur le mariage
+      if (isMarriageQuestion) {
+        const replies = [
+          "Oui, je cherche sincèrement à me marier InshaAllah, dans le respect de notre religion. Et vous, quelle est votre démarche ?",
+          "Le mariage est une belle sunna. Je souhaite fonder un foyer pieux InshaAllah.",
+          "Je cherche une personne sérieuse pour avancer dans le halal InshaAllah."
+        ];
+        return replies[count % replies.length];
+      }
+
+      // 3) Se présenter / Qui es-tu ?
+      if (isAboutMe) {
+        const replies = [
+          "Je suis quelqu'un de simple, pratiquant(e) et respectueux(se). J'aimerais avancer vers le mariage avec une personne sincère.",
+          "Je viens d'un milieu modeste et respectueux. La foi occupe une place centrale dans ma vie.",
+          "Je suis sérieux(se) dans ma démarche et j'espère trouver quelqu'un qui partage mes valeurs."
+        ];
+        return replies[count % replies.length];
+      }
+
+      // 4) Famille / enfants
+      if (isAboutFamily) {
+        return "La famille est très importante pour moi. Fonder un foyer stable et pieux est mon objectif principal InshaAllah.";
+      }
+
+      // 5) Religion
+      if (isAboutReligion) {
+        return "La religion est le pilier de ma vie. Je fais de mon mieux pour pratiquer et m'améliorer chaque jour Al hamdoulillah.";
+      }
+
+      // 6) Compliments
+      if (isCompliment) {
+        return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
+      }
+
+      // 7) Réponses par défaut selon le compteur
+      const defaults = [
+        "Merci pour votre message. Comment se passe votre journée ?",
+        "Je vous remercie pour votre retour. Pourriez-vous m'en dire un peu plus sur vous ?",
+        "D'accord, je comprends. Et vous, quel est votre parcours ?",
+        "Votre parcours m'intéresse. Quelles sont vos attentes dans le mariage InshaAllah ?",
+        "Excusez-moi, je dois m'absenter un moment. Nous reprendrons cette discussion plus tard InshaAllah. Qu'Allah vous facilite."
+      ];
+      return defaults[Math.min(count, defaults.length - 1)];
+    }
+
+    async function triggerAutoReply(userText) {
+      if (!isSeedProfile) return;
+      const count = getAutoReplyCount();
+      if (count >= MAX_AUTO_REPLIES) return;
+
+      // Délai réaliste : 2 à 4 secondes
+      const delay = 2000 + Math.random() * 2000;
+
+      // Afficher "en train d'écrire…"
+      setTimeout(() => {
+        setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
+      }, 500);
+
+      setTimeout(async () => {
+        const reply = generateReply(userText, count);
+        try {
+          const { error } = await supabaseClient.from('messages').insert({
+            conversation_id: conversationId,
+            sender_id: otherUserId,
+            content_type: 'text',
+            text_body: reply
+          });
+          if (error) {
+            console.error('Auto-reply error:', error);
+            setStatus('❌ Impossible de répondre : ' + error.message, 'err');
+          } else {
+            incrementAutoReplyCount();
+            setStatus('Prêt', 'info');
+          }
+        } catch(e) {
+          console.error(e);
+          setStatus('Prêt', 'info');
+        }
+      }, delay);
+    }
+    // ============================================================
 
     async function renderMessage(m, force = false) {
       if (!force && displayedIds.has(m.id)) return;
@@ -164,23 +281,19 @@
       const btn = document.getElementById('deleteAllBtn');
       if (mine) btn.classList.remove('hidden'); else btn.classList.add('hidden');
     }
-
     function closeMenu() {
       document.getElementById('msgMenu').classList.add('hidden');
       selectedMsg = null;
     }
-
     function deleteForMe() {
       if (!selectedMsg) return;
-      deletedForMe.add(selectedMsg);
-      saveDeletedForMe();
+      deletedForMe.add(selectedMsg); saveDeletedForMe();
       const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
       if (el) el.remove();
       closeMenu();
       setStatus('🗑️ Supprimé pour vous', 'ok');
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
     }
-
     async function deleteForEveryone() {
       if (!selectedMsg) return;
       if (!confirm('Supprimer ce message pour TOUT LE MONDE ?')) return;
@@ -194,18 +307,13 @@
     }
 
     async function markAllAsRead() {
-      await supabaseClient.from('messages')
-        .update({ is_read: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', currentUser.id)
-        .eq('is_read', false);
+      await supabaseClient.from('messages').update({ is_read: true })
+        .eq('conversation_id', conversationId).neq('sender_id', currentUser.id).eq('is_read', false);
     }
 
     async function insertMessage(payload) {
       const { data, error } = await supabaseClient.from('messages').insert({
-        conversation_id: conversationId,
-        sender_id: currentUser.id,
-        ...payload
+        conversation_id: conversationId, sender_id: currentUser.id, ...payload
       }).select().single();
 
       if (error) {
@@ -230,7 +338,9 @@
       const { data: other } = await supabaseClient.from('profiles')
         .select('username, city, country').eq('id', otherUserId).single();
       if (other) {
-        document.getElementById('otherName').textContent = other.username || 'Utilisateur';
+        otherUserName = other.username || 'Utilisateur';
+        isSeedProfile = otherUserName.startsWith('seed_');
+        document.getElementById('otherName').textContent = otherUserName;
         document.getElementById('otherInfo').textContent = (other.city||'') + (other.country ? ', '+other.country : '');
       }
 
@@ -299,7 +409,11 @@
       if (!text) return;
       input.value = '';
       const r = await insertMessage({ content_type: 'text', text_body: text });
-      if (r) setStatus('✅ Envoyé', 'ok');
+      if (r) {
+        setStatus('✅ Envoyé', 'ok');
+        // 🤖 Déclencher la réponse automatique si c'est un profil de démo
+        triggerAutoReply(text);
+      }
     }
 
     document.getElementById('fileInput').addEventListener('change', async (e) => {
@@ -319,8 +433,7 @@
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
         const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.jpg';
-        const { error: upErr } = await supabaseClient.storage
-          .from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
+        const { error: upErr } = await supabaseClient.storage.from('chat-media').upload(path, blob, { contentType: 'image/jpeg' });
         if (upErr) throw upErr;
         const r = await insertMessage({ content_type: 'image', content_url: path });
         if (r) setStatus('✅ Photo envoyée', 'ok');
@@ -356,8 +469,7 @@
             const ext = actualType.includes('mp4') ? 'm4a' : actualType.includes('ogg') ? 'ogg' : 'webm';
             setStatus('⏳ Upload vocal…', 'info');
             const path = conversationId + '/' + currentUser.id + '/' + Date.now() + '.' + ext;
-            const { error: upErr } = await supabaseClient.storage
-              .from('chat-media').upload(path, blob, { contentType: actualType });
+            const { error: upErr } = await supabaseClient.storage.from('chat-media').upload(path, blob, { contentType: actualType });
             if (upErr) throw upErr;
             const r = await insertMessage({ content_type: 'audio', content_url: path });
             if (r) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
@@ -371,7 +483,6 @@
       } catch (err) { setStatus('❌ Micro : ' + err.message, 'err'); }
     });
 
-    // 💳 Redirection vers la page de paiement
     function unlockConversation() {
       window.location.href = 'paiement.html?user=' + otherUserId;
     }
