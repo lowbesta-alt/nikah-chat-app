@@ -19,7 +19,7 @@
 
   <main class="max-w-2xl mx-auto p-4">
 
-    <!-- EN-TÊTE -->
+    <!-- En-tête -->
     <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-2xl shadow-lg p-6 mb-4 text-center">
       <div class="text-4xl mb-2">🔓</div>
       <h1 class="text-xl font-bold mb-1">Débloquer la conversation</h1>
@@ -27,62 +27,59 @@
       <p class="text-xs text-emerald-100 mt-2">Conversation avec <strong id="otherName">…</strong></p>
     </div>
 
-    <!-- Page principale : invitation + bouton -->
+    <!-- Instructions fixes -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
-      <p class="text-sm text-slate-600 text-center mb-4 leading-relaxed">
-        Vos informations de paiement sont protégées.<br>
-        Cliquez sur le bouton ci-dessous pour les afficher.
-      </p>
-      <button id="toggleBtn" onclick="toggleInfo()"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-5 rounded-xl flex items-center justify-center gap-3 transition active:scale-[0.99]">
-        <span class="text-xl">🔐</span>
-        <span class="text-sm">Cliquez ici pour afficher les informations de paiement</span>
-        <span id="toggleArrow" class="text-lg transition-transform duration-300">▼</span>
-      </button>
+      <ol class="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
+        <li>Pour vos paiements symboliques (1 dollar / environ 600 FCFA), que ce soit en local directement sur nos numéros au pays, ou depuis l'international / diaspora via des applications sécurisées comme <strong>Sendwave</strong> ou <strong>WorldRemit</strong> pour alimenter ces mêmes numéros.</li>
+        <li>Une fois le paiement effectué, veuillez cliquer sur le bouton WhatsApp ci-dessous pour envoyer votre capture d'écran ou la référence du reçu et valider immédiatement votre commande.</li>
+        <li>Cliquez sur le bouton ci-dessous pour avoir les informations sur votre dépôt.</li>
+      </ol>
     </div>
 
-    <!-- Bloc dynamique au clic -->
-    <div id="infoBlock" class="hidden space-y-3 mb-4">
+    <!-- Bouton toggle -->
+    <button id="toggle-info-btn" onclick="togglePaymentInfo()"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-5 rounded-xl flex items-center justify-center gap-3 transition active:scale-[0.99] mb-4">
+      <span class="text-lg">🔐</span>
+      <span id="toggle-info-text" class="text-sm">Cliquez ici pour afficher les informations de dépôt</span>
+      <span id="toggle-arrow" class="text-lg transition-transform duration-300">▼</span>
+    </button>
 
-      <!-- MTN -->
+    <!-- Bloc sensible (masqué par défaut) -->
+    <div id="sensitive-payment-info" style="display: none;" class="space-y-3 mb-4">
+
       <div class="bg-white rounded-2xl shadow border-2 border-yellow-300 p-4">
         <p class="text-xs text-yellow-700 font-semibold mb-2">📱 MTN Mobile Money</p>
-        <p class="font-bold text-yellow-900 text-2xl tracking-wide mb-3" id="mtnNum">—</p>
+        <p class="font-bold text-yellow-900 text-2xl tracking-wide mb-3" id="mtnNumDisplay">—</p>
         <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-          <p class="text-[11px] text-yellow-700 mb-0.5">Nom complet :</p>
-          <p class="font-semibold text-yellow-900" id="mtnName">—</p>
+          <p class="text-[11px] text-yellow-700 mb-0.5">Nom du compte :</p>
+          <p class="font-semibold text-yellow-900" id="mtnNameDisplay">—</p>
         </div>
       </div>
 
-      <!-- Orange -->
       <div class="bg-white rounded-2xl shadow border-2 border-orange-300 p-4">
         <p class="text-xs text-orange-700 font-semibold mb-2">🟠 Orange Money</p>
-        <p class="font-bold text-orange-900 text-2xl tracking-wide mb-3" id="orangeNum">—</p>
+        <p class="font-bold text-orange-900 text-2xl tracking-wide mb-3" id="orangeNumDisplay">—</p>
         <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
-          <p class="text-[11px] text-orange-700 mb-0.5">Nom complet :</p>
-          <p class="font-semibold text-orange-900" id="orangeName">—</p>
+          <p class="text-[11px] text-orange-700 mb-0.5">Nom du compte :</p>
+          <p class="font-semibold text-orange-900" id="orangeNameDisplay">—</p>
         </div>
-      </div>
-
-      <!-- Bloc d'aide et de validation -->
-      <div class="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
-        <p class="text-xs text-blue-800 font-bold mb-3">🌍 Information importante</p>
-        <p class="text-sm text-blue-900 leading-relaxed whitespace-pre-line mb-4" id="helpText"></p>
-
-        <!-- 🎯 BOUTON WHATSAPP DIRECT -->
-        <a id="whatsappBtn" href="#" target="_blank"
-           class="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 px-5 rounded-xl transition active:scale-[0.99] shadow-lg">
-          <span class="text-2xl">📲</span>
-          <span>Envoyer la capture sur WhatsApp</span>
-        </a>
-        <p class="text-[11px] text-blue-700 text-center mt-2">
-          Numéro : <strong id="whatsappNumDisplay">+237 671 70 68 86</strong>
-        </p>
       </div>
 
     </div>
 
-    <!-- Formulaire -->
+    <!-- Bouton WhatsApp direct (numéro NON affiché) -->
+    <div class="mb-4">
+      <a id="whatsappBtn" href="https://wa.me/237671706886?text=Bonjour%2C%20voici%20ma%20preuve%20de%20paiement." target="_blank"
+         class="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 px-5 rounded-xl transition active:scale-[0.99] shadow-lg">
+        <span class="text-2xl">💬</span>
+        <span>Envoyer ma confirmation sur WhatsApp</span>
+      </a>
+      <p class="text-[11px] text-slate-500 text-center mt-2">
+        Le bouton ouvre directement la conversation — aucun numéro à copier.
+      </p>
+    </div>
+
+    <!-- Formulaire de confirmation -->
     <form id="payForm" class="bg-white rounded-2xl shadow p-5 space-y-4 hidden">
       <h2 class="font-bold text-lg">✅ Confirmer votre paiement</h2>
       <p class="text-xs text-slate-500">Une fois le paiement effectué, remplissez ce formulaire.</p>
@@ -135,14 +132,19 @@
       msg.classList.remove('hidden');
     }
 
-    function toggleInfo() {
-      const block = document.getElementById('infoBlock');
-      const arrow = document.getElementById('toggleArrow');
-      if (block.classList.contains('hidden')) {
-        block.classList.remove('hidden');
+    // Bascule l'affichage des informations sensibles
+    function togglePaymentInfo() {
+      const infoBox = document.getElementById('sensitive-payment-info');
+      const btn = document.getElementById('toggle-info-text');
+      const arrow = document.getElementById('toggle-arrow');
+
+      if (infoBox.style.display === 'none') {
+        infoBox.style.display = 'block';
+        btn.textContent = 'Masquer les informations de dépôt';
         arrow.style.transform = 'rotate(180deg)';
       } else {
-        block.classList.add('hidden');
+        infoBox.style.display = 'none';
+        btn.textContent = 'Cliquez ici pour afficher les informations de dépôt';
         arrow.style.transform = 'rotate(0deg)';
       }
     }
@@ -162,24 +164,15 @@
 
       const { data: s } = await supabaseClient.from('payment_settings').select('*').eq('id', 1).single();
       if (s) {
-        document.getElementById('mtnNum').textContent = s.mtn_number || '(non configuré)';
-        document.getElementById('mtnName').textContent = s.mtn_name || '(non précisé)';
-        document.getElementById('orangeNum').textContent = s.orange_number || '(non configuré)';
-        document.getElementById('orangeName').textContent = s.orange_name || '(non précisé)';
+        document.getElementById('mtnNumDisplay').textContent = s.mtn_number || '(non configuré)';
+        document.getElementById('mtnNameDisplay').textContent = s.mtn_name || '(non précisé)';
+        document.getElementById('orangeNumDisplay').textContent = s.orange_number || '(non configuré)';
+        document.getElementById('orangeNameDisplay').textContent = s.orange_name || '(non précisé)';
 
-        // 🎯 Numéro WhatsApp +237 671 70 68 86
-        const whatsNum = s.whatsapp_contact || '+237 671 70 68 86';
-        const whatsClean = whatsNum.replace(/[^0-9]/g, ''); // ex: 237671706886
-
-        document.getElementById('whatsappNumDisplay').textContent = whatsNum;
-        document.getElementById('whatsappBtn').href = 'https://wa.me/' + whatsClean;
-
-        // Texte exact
-        const helpText = 
-          "Pour nos clients de la diaspora / de l'international, vous pouvez envoyer les fonds instantanément sur ces mêmes numéros Mobile Money en utilisant des applications de transfert sécurisées comme Sendwave ou WorldRemit.\n\n" +
-          "Une fois le paiement effectué, veuillez envoyer la capture d'écran ou la référence du reçu sur notre numéro WhatsApp au " + whatsNum + " pour valider immédiatement votre commande.";
-
-        document.getElementById('helpText').textContent = helpText;
+        // WhatsApp — lien direct, numéro jamais affiché
+        const whatsNum = (s.whatsapp_contact || '237671706886').replace(/[^0-9]/g, '');
+        document.getElementById('whatsappBtn').href =
+          'https://wa.me/' + whatsNum + '?text=' + encodeURIComponent('Bonjour, voici ma preuve de paiement.');
 
         if (s.mtn_number || s.orange_number) {
           document.getElementById('payForm').classList.remove('hidden');
