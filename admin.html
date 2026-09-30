@@ -260,37 +260,31 @@
       const { data: s } = await supabaseClient.from('payment_settings').select('*').eq('id', 1).single();
       const p = s || {};
 
-      const defaultInstructions = "Pour les paiements depuis l'international ou le local :\n\nEffectuez le transfert via les applications de transfert international (comme Sendwave ou WorldRemit) ou directement sur nos numéros MTN Mobile Money / Orange Money indiqués ci-dessus.\n\nEnvoyez ensuite la capture d'écran ou la référence du reçu de paiement sur notre contact WhatsApp pour validation immédiate de votre commande.";
-
       box.innerHTML = `
         <div class="space-y-4">
-          <div class="bg-slate-800 rounded-xl p-4 space-y-3 border border-orange-700/30">
-            <h3 class="text-sm font-bold text-orange-400 flex items-center gap-2">📱 Coordonnées de paiement</h3>
-            <p class="text-xs text-slate-400">Ces informations s'affichent aux utilisateurs bloqués pour qu'ils puissent vous payer.</p>
 
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">📱 MTN Mobile Money</label>
-              <input type="text" id="set_mtn" value="${p.mtn_number || ''}" placeholder="+237 6XX XX XX XX"
-                     class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
-            </div>
+          <div class="bg-slate-800 rounded-xl p-4 space-y-4 border border-orange-700/30">
+            <h3 class="text-sm font-bold text-orange-400">📱 MTN Mobile Money</h3>
+            <input type="text" id="set_mtn" value="${p.mtn_number || ''}" placeholder="Numéro MTN : +237 6XX XX XX XX"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
+            <input type="text" id="set_mtn_name" value="${p.mtn_name || ''}" placeholder="Nom du titulaire (affiché après le clic)"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
+          </div>
 
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">🟠 Orange Money</label>
-              <input type="text" id="set_orange" value="${p.orange_number || ''}" placeholder="+237 6XX XX XX XX"
-                     class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
-            </div>
+          <div class="bg-slate-800 rounded-xl p-4 space-y-4 border border-orange-700/30">
+            <h3 class="text-sm font-bold text-orange-400">🟠 Orange Money</h3>
+            <input type="text" id="set_orange" value="${p.orange_number || ''}" placeholder="Numéro Orange : +237 6XX XX XX XX"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
+            <input type="text" id="set_orange_name" value="${p.orange_name || ''}" placeholder="Nom du titulaire (affiché après le clic)"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
+          </div>
 
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">💬 WhatsApp (contact pour validation)</label>
-              <input type="text" id="set_whatsapp" value="${p.whatsapp_contact || ''}" placeholder="+237 6XX XX XX XX"
-                     class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
-            </div>
-
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">📝 Instructions affichées aux utilisateurs</label>
-              <textarea id="set_instr" rows="8"
-                        class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">${p.instructions || defaultInstructions}</textarea>
-            </div>
+          <div class="bg-slate-800 rounded-xl p-4 space-y-4 border border-emerald-700/30">
+            <h3 class="text-sm font-bold text-emerald-400">💬 WhatsApp (validation)</h3>
+            <input type="text" id="set_whatsapp" value="${p.whatsapp_contact || ''}" placeholder="Numéro WhatsApp : +237 6XX XX XX XX"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
+            <input type="text" id="set_whatsapp_name" value="${p.whatsapp_name || ''}" placeholder="Nom affiché sur WhatsApp"
+                   class="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg outline-none text-white text-sm">
           </div>
 
           <button onclick="saveSettings()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg font-semibold">
@@ -305,9 +299,11 @@
       const data = {
         id: 1,
         mtn_number: document.getElementById('set_mtn').value.trim(),
+        mtn_name: document.getElementById('set_mtn_name').value.trim(),
         orange_number: document.getElementById('set_orange').value.trim(),
+        orange_name: document.getElementById('set_orange_name').value.trim(),
         whatsapp_contact: document.getElementById('set_whatsapp').value.trim(),
-        instructions: document.getElementById('set_instr').value.trim(),
+        whatsapp_name: document.getElementById('set_whatsapp_name').value.trim(),
         updated_at: new Date().toISOString()
       };
       const { error } = await supabaseClient.from('payment_settings').upsert(data);
