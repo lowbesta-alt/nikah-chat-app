@@ -25,113 +25,34 @@
       <p class="text-xs text-emerald-100 mt-2">Conversation avec <strong id="otherName">…</strong></p>
     </div>
 
-    <div class="bg-white rounded-2xl shadow p-4 mb-4">
-      <p class="text-xs text-slate-500 text-center mb-3 font-medium">🌍 Choisissez votre région</p>
-      <div class="flex gap-2">
-        <button id="tabIntl" onclick="showRegion('intl')" class="flex-1 py-3 rounded-xl font-semibold bg-emerald-600 text-white transition">
-          💳 Carte bancaire
-          <span class="block text-[10px] font-normal opacity-80">International</span>
-        </button>
-        <button id="tabAfrica" onclick="showRegion('africa')" class="flex-1 py-3 rounded-xl font-semibold bg-slate-100 text-slate-600 transition">
-          📱 Mobile Money
-          <span class="block text-[10px] font-normal opacity-80">Afrique</span>
-        </button>
+    <div class="bg-white rounded-2xl shadow p-5 mb-4 space-y-3">
+      <h2 class="font-bold text-lg flex items-center gap-2"><span>📱</span> Coordonnées de paiement</h2>
+
+      <div id="payMtn" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+        <p class="text-xs text-yellow-800 font-medium mb-1">📱 MTN Mobile Money</p>
+        <p class="font-semibold text-yellow-900 text-lg" id="mtnNum"></p>
+      </div>
+
+      <div id="payOrange" class="hidden bg-orange-50 border border-orange-200 rounded-xl p-3">
+        <p class="text-xs text-orange-800 font-medium mb-1">🟠 Orange Money</p>
+        <p class="font-semibold text-orange-900 text-lg" id="orangeNum"></p>
+      </div>
+
+      <div id="payInstructions" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <p class="text-xs text-amber-800 font-medium mb-2">📝 Instructions</p>
+        <p class="text-sm text-amber-900 whitespace-pre-line leading-relaxed" id="instr"></p>
+      </div>
+
+      <div id="payWhatsapp" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+        <p class="text-xs text-emerald-800 font-medium mb-1">💬 Contact WhatsApp pour validation</p>
+        <a id="whatsappLink" href="#" target="_blank"
+           class="inline-block mt-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm">
+          📲 Ouvrir WhatsApp
+        </a>
+        <p class="text-xs text-emerald-700 mt-2" id="whatsappNum"></p>
       </div>
     </div>
 
-    <!-- SECTION INTERNATIONALE -->
-    <div id="secIntl" class="space-y-3 mb-4">
-      <div class="bg-white rounded-2xl shadow p-5 space-y-3">
-        <h2 class="font-bold text-lg flex items-center gap-2"><span>🌍</span> Paiement international</h2>
-        <p class="text-xs text-slate-500">Payez en toute sécurité depuis n'importe quel pays.</p>
-
-        <!-- 🎯 ElyonPay (s'active automatiquement quand configuré) -->
-        <button id="elyonBtn" onclick="payWithElyon()"
-                class="hidden w-full flex items-center gap-3 bg-gradient-to-r from-violet-600 to-violet-500 text-white rounded-xl p-4 hover:opacity-90 transition text-left">
-          <span class="text-3xl">🎯</span>
-          <div class="flex-1">
-            <p class="font-bold">Payer par carte (ElyonPay)</p>
-            <p class="text-xs opacity-90">Visa · Mastercard · Amex — Paiement instantané</p>
-          </div>
-          <span class="text-2xl">→</span>
-        </button>
-
-        <a id="paypalBtn" href="#" target="_blank"
-           class="hidden flex items-center gap-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl p-4 hover:opacity-90 transition">
-          <span class="text-3xl">💳</span>
-          <div class="flex-1">
-            <p class="font-bold">Payer par carte (PayPal)</p>
-            <p class="text-xs opacity-90">Visa · Mastercard · Amex</p>
-          </div>
-          <span class="text-2xl">→</span>
-        </a>
-
-        <a id="wiseBtn" href="#" target="_blank"
-           class="hidden flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-emerald-400 text-white rounded-xl p-4 hover:opacity-90 transition">
-          <span class="text-3xl">🌊</span>
-          <div class="flex-1">
-            <p class="font-bold">Payer par virement (Wise)</p>
-            <p class="text-xs opacity-90">Accepte les cartes internationales</p>
-          </div>
-          <span class="text-2xl">→</span>
-        </a>
-
-        <a id="payoneerBtn" href="#" target="_blank"
-           class="hidden flex items-center gap-3 bg-gradient-to-r from-orange-500 to-orange-400 text-white rounded-xl p-4 hover:opacity-90 transition">
-          <span class="text-3xl">🅿️</span>
-          <div class="flex-1">
-            <p class="font-bold">Payer via Payoneer</p>
-            <p class="text-xs opacity-90">Transfert sécurisé</p>
-          </div>
-          <span class="text-2xl">→</span>
-        </a>
-
-        <div id="paypalEmailBox" class="hidden bg-blue-50 border border-blue-200 rounded-xl p-3">
-          <p class="text-xs text-blue-800 font-medium mb-1">📧 Compte PayPal</p>
-          <p class="text-sm font-semibold text-blue-900" id="paypalEmailText"></p>
-        </div>
-
-        <div id="intlInstrBox" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <p class="text-xs text-amber-800 font-medium mb-1">📝 Instructions</p>
-          <p class="text-sm text-amber-900 whitespace-pre-line" id="intlInstrText"></p>
-        </div>
-      </div>
-    </div>
-
-    <!-- SECTION AFRIQUE -->
-    <div id="secAfrica" class="space-y-3 mb-4 hidden">
-      <div class="bg-white rounded-2xl shadow p-5 space-y-3">
-        <h2 class="font-bold text-lg flex items-center gap-2"><span>📱</span> Mobile Money</h2>
-        <p class="text-xs text-slate-500">Payez via votre opérateur mobile.</p>
-
-        <div id="payMtn" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-          <p class="text-xs text-yellow-800 font-medium mb-1">📱 MTN Mobile Money</p>
-          <p class="font-semibold text-yellow-900 text-lg" id="mtnNum"></p>
-        </div>
-
-        <div id="payOrange" class="hidden bg-orange-50 border border-orange-200 rounded-xl p-3">
-          <p class="text-xs text-orange-800 font-medium mb-1">🟠 Orange Money</p>
-          <p class="font-semibold text-orange-900 text-lg" id="orangeNum"></p>
-        </div>
-
-        <div id="payWave" class="hidden bg-sky-50 border border-sky-200 rounded-xl p-3">
-          <p class="text-xs text-sky-800 font-medium mb-1">🌊 Wave</p>
-          <p class="font-semibold text-sky-900 text-lg" id="waveNum"></p>
-        </div>
-
-        <div id="payInstructions" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <p class="text-xs text-amber-800 font-medium mb-1">📝 Instructions</p>
-          <p class="text-sm text-amber-900 whitespace-pre-line" id="instr"></p>
-        </div>
-
-        <div id="payWhatsapp" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          <p class="text-xs text-emerald-800 font-medium mb-1">💬 Contact WhatsApp</p>
-          <a id="whatsappLink" href="#" target="_blank" class="font-semibold text-emerald-900 underline text-lg">Contacter</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- FORMULAIRE -->
     <form id="payForm" class="bg-white rounded-2xl shadow p-5 space-y-4 hidden">
       <h2 class="font-bold text-lg">✅ Confirmer votre paiement</h2>
       <p class="text-xs text-slate-500">Une fois le paiement effectué, remplissez ce formulaire.</p>
@@ -140,24 +61,18 @@
         <label class="block text-sm font-medium mb-1">Moyen utilisé</label>
         <select id="payProvider" required class="w-full px-3 py-2 border rounded-lg bg-white">
           <option value="">— Choisir —</option>
-          <optgroup label="🌍 International">
-            <option value="ElyonPay carte">🎯 ElyonPay (carte)</option>
-            <option value="Carte via PayPal">💳 Carte (PayPal)</option>
-            <option value="Wise">🌊 Wise</option>
-            <option value="Payoneer">🅿️ Payoneer</option>
-          </optgroup>
-          <optgroup label="🇨🇲 Afrique">
-            <option value="MTN MoMo">📱 MTN Mobile Money</option>
-            <option value="Orange Money">🟠 Orange Money</option>
-            <option value="Wave">🌊 Wave</option>
-          </optgroup>
+          <option value="MTN Mobile Money">📱 MTN Mobile Money</option>
+          <option value="Orange Money">🟠 Orange Money</option>
+          <option value="Sendwave">🌍 Sendwave (international)</option>
+          <option value="WorldRemit">🌍 WorldRemit (international)</option>
         </select>
       </div>
 
       <div>
         <label class="block text-sm font-medium mb-1">Référence de la transaction</label>
-        <input type="text" id="payRef" required placeholder="Ex: PAY-123456789"
+        <input type="text" id="payRef" required placeholder="Ex: MP240930.1234.A56789"
                class="w-full px-3 py-2 border rounded-lg">
+        <p class="text-xs text-slate-500 mt-1">Numéro reçu par SMS après le paiement.</p>
       </div>
 
       <div>
@@ -179,7 +94,6 @@
     let conversationId = null;
     let otherUserId = null;
     let currentUser = null;
-    let elyonConfig = null;
 
     const params = new URLSearchParams(window.location.search);
     otherUserId = params.get('user');
@@ -190,44 +104,6 @@
         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         : 'bg-red-50 text-red-700 border border-red-200');
       msg.classList.remove('hidden');
-    }
-
-    function showRegion(region) {
-      const tabIntl = document.getElementById('tabIntl');
-      const tabAfrica = document.getElementById('tabAfrica');
-      const secIntl = document.getElementById('secIntl');
-      const secAfrica = document.getElementById('secAfrica');
-
-      if (region === 'intl') {
-        tabIntl.className = 'flex-1 py-3 rounded-xl font-semibold bg-emerald-600 text-white transition';
-        tabAfrica.className = 'flex-1 py-3 rounded-xl font-semibold bg-slate-100 text-slate-600 transition';
-        secIntl.classList.remove('hidden');
-        secAfrica.classList.add('hidden');
-      } else {
-        tabAfrica.className = 'flex-1 py-3 rounded-xl font-semibold bg-emerald-600 text-white transition';
-        tabIntl.className = 'flex-1 py-3 rounded-xl font-semibold bg-slate-100 text-slate-600 transition';
-        secAfrica.classList.remove('hidden');
-        secIntl.classList.add('hidden');
-      }
-    }
-
-    // 🎯 ElyonPay — placeholder prêt pour l'intégration finale
-    function payWithElyon() {
-      if (!elyonConfig || !elyonConfig.enabled) {
-        alert('ElyonPay n\'est pas encore activé. Utilisez une autre méthode.');
-        return;
-      }
-
-      // 🔧 Cette fonction sera complétée quand tu auras tes clés ElyonPay
-      // Elle redirigera vers la page de paiement ElyonPay
-      alert(
-        '🚧 Intégration ElyonPay en préparation.\n\n' +
-        'Dès que tu auras activé tes clés dans l\'admin, cette bouton ouvrira la page de paiement automatique.\n\n' +
-        'En attendant, utilise PayPal ou Mobile Money.'
-      );
-
-      // Quand tu auras tes clés, on remplacera ce bloc par :
-      // window.location.href = 'https://checkout.elyonpay.com/' + elyonConfig.siteId + '?amount=600&currency=XAF&ref=' + conversationId;
     }
 
     (async () => {
@@ -248,49 +124,22 @@
 
       const { data: s } = await supabaseClient.from('payment_settings').select('*').eq('id', 1).single();
       if (s) {
-        // 🎯 ElyonPay (s'active seulement si les 3 clés sont remplies ET enabled = true)
-        elyonConfig = {
-          enabled: s.elyonpay_enabled && s.elyonpay_public_key && s.elyonpay_site_id,
-          publicKey: s.elyonpay_public_key,
-          siteId: s.elyonpay_site_id,
-          testMode: s.elyonpay_test_mode
-        };
-        if (elyonConfig.enabled) {
-          document.getElementById('elyonBtn').classList.remove('hidden');
+        if (s.mtn_number) {
+          document.getElementById('mtnNum').textContent = s.mtn_number;
+          document.getElementById('payMtn').classList.remove('hidden');
         }
-
-        // PayPal
-        if (s.paypal_link) {
-          const btn = document.getElementById('paypalBtn');
-          btn.href = s.paypal_link;
-          btn.classList.remove('hidden');
+        if (s.orange_number) {
+          document.getElementById('orangeNum').textContent = s.orange_number;
+          document.getElementById('payOrange').classList.remove('hidden');
         }
-        if (s.paypal_email) {
-          document.getElementById('paypalEmailText').textContent = s.paypal_email;
-          document.getElementById('paypalEmailBox').classList.remove('hidden');
+        if (s.instructions) {
+          document.getElementById('instr').textContent = s.instructions;
+          document.getElementById('payInstructions').classList.remove('hidden');
         }
-        if (s.wise_link) {
-          const btn = document.getElementById('wiseBtn');
-          btn.href = s.wise_link;
-          btn.classList.remove('hidden');
-        }
-        if (s.payoneer_link) {
-          const btn = document.getElementById('payoneerBtn');
-          btn.href = s.payoneer_link;
-          btn.classList.remove('hidden');
-        }
-        if (s.international_instructions) {
-          document.getElementById('intlInstrText').textContent = s.international_instructions;
-          document.getElementById('intlInstrBox').classList.remove('hidden');
-        }
-
-        // Mobile Money
-        if (s.mtn_number) { document.getElementById('mtnNum').textContent = s.mtn_number; document.getElementById('payMtn').classList.remove('hidden'); }
-        if (s.orange_number) { document.getElementById('orangeNum').textContent = s.orange_number; document.getElementById('payOrange').classList.remove('hidden'); }
-        if (s.wave_number) { document.getElementById('waveNum').textContent = s.wave_number; document.getElementById('payWave').classList.remove('hidden'); }
-        if (s.instructions) { document.getElementById('instr').textContent = s.instructions; document.getElementById('payInstructions').classList.remove('hidden'); }
         if (s.whatsapp_contact) {
-          document.getElementById('whatsappLink').href = 'https://wa.me/' + s.whatsapp_contact.replace(/[^0-9]/g, '');
+          const clean = s.whatsapp_contact.replace(/[^0-9]/g, '');
+          document.getElementById('whatsappLink').href = 'https://wa.me/' + clean;
+          document.getElementById('whatsappNum').textContent = s.whatsapp_contact;
           document.getElementById('payWhatsapp').classList.remove('hidden');
         }
 
@@ -313,7 +162,8 @@
 
       show(
         '✅ Demande envoyée !\n\n' +
-        'L\'administrateur va vérifier votre paiement sous peu.',
+        'L\'administrateur va vérifier votre paiement.\n' +
+        'Vous recevrez une notification dès validation.',
         'ok'
       );
       document.getElementById('payForm').reset();
