@@ -20,6 +20,7 @@
           🔔
           <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
         </a>
+        <a href="admin.html" id="adminBtn" class="hidden text-2xl" title="Admin">⚙️</a>
         <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
       </nav>
     </div>
@@ -114,7 +115,15 @@
       else badge.classList.add('hidden');
     }
 
+    async function checkAdmin() {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) return;
+      const { data: p } = await supabaseClient.from('profiles').select('is_admin').eq('id', user.id).single();
+      if (p?.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
+    }
+
     loadNotifBadge();
+    checkAdmin();
     setInterval(loadNotifBadge, 15000);
 
     function calcAge(birthDate) {
