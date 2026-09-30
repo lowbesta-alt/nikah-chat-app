@@ -119,7 +119,7 @@
     }
 
     // ============================================================
-    // 🤖 SYSTÈME DE RÉPONSES AUTOMATIQUES (profils de démo)
+    // 🤖 RÉPONSES AUTOMATIQUES (profils de démo)
     // ============================================================
     const MAX_AUTO_REPLIES = 5;
 
@@ -135,7 +135,6 @@
     function generateReply(userText, count) {
       const t = (userText || '').toLowerCase();
 
-      // Détection des mots-clés
       const isGreeting = /salam|salem|salut|bonjour|bonsoir|coucou|hello|hi/i.test(t);
       const isMarriageQuestion = /mariage|marier|épous|nikah|foyer|moitié/i.test(t);
       const isAboutMe = /qui|présente|parle.*moi|connaître|toi/i.test(t);
@@ -143,15 +142,12 @@
       const isAboutReligion = /islam|religio|prière|coran|allah|foi|pratique/i.test(t);
       const isCompliment = /belle|beau|jolie|sérieux|bien|intéressant/i.test(t);
 
-      // 1) Salutations (priorité maximale au début)
       if (isGreeting && count === 0) {
         return "Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?";
       }
       if (isGreeting && count > 0) {
         return "Salam 😊 Ravie de vous lire à nouveau.";
       }
-
-      // 2) Question sur le mariage
       if (isMarriageQuestion) {
         const replies = [
           "Oui, je cherche sincèrement à me marier InshaAllah, dans le respect de notre religion. Et vous, quelle est votre démarche ?",
@@ -160,8 +156,6 @@
         ];
         return replies[count % replies.length];
       }
-
-      // 3) Se présenter / Qui es-tu ?
       if (isAboutMe) {
         const replies = [
           "Je suis quelqu'un de simple, pratiquant(e) et respectueux(se). J'aimerais avancer vers le mariage avec une personne sincère.",
@@ -170,23 +164,16 @@
         ];
         return replies[count % replies.length];
       }
-
-      // 4) Famille / enfants
       if (isAboutFamily) {
         return "La famille est très importante pour moi. Fonder un foyer stable et pieux est mon objectif principal InshaAllah.";
       }
-
-      // 5) Religion
       if (isAboutReligion) {
         return "La religion est le pilier de ma vie. Je fais de mon mieux pour pratiquer et m'améliorer chaque jour Al hamdoulillah.";
       }
-
-      // 6) Compliments
       if (isCompliment) {
         return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
       }
 
-      // 7) Réponses par défaut selon le compteur
       const defaults = [
         "Merci pour votre message. Comment se passe votre journée ?",
         "Je vous remercie pour votre retour. Pourriez-vous m'en dire un peu plus sur vous ?",
@@ -202,10 +189,8 @@
       const count = getAutoReplyCount();
       if (count >= MAX_AUTO_REPLIES) return;
 
-      // Délai réaliste : 2 à 4 secondes
       const delay = 2000 + Math.random() * 2000;
 
-      // Afficher "en train d'écrire…"
       setTimeout(() => {
         setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
       }, 500);
@@ -213,22 +198,27 @@
       setTimeout(async () => {
         const reply = generateReply(userText, count);
         try {
-          const { error } = await supabaseClient.from('messages').insert({
-            conversation_id: conversationId,
-            sender_id: otherUserId,
-            content_type: 'text',
-            text_body: reply
+          // 🎯 Appel de la fonction SECURITY DEFINER
+          const { data, error } = await supabaseClient.rpc('reply_as_seed', {
+            p_conversation_id: conversationId,
+            p_reply_text: reply
           });
+
           if (error) {
-            console.error('Auto-reply error:', error);
-            setStatus('❌ Impossible de répondre : ' + error.message, 'err');
-          } else {
+            console.error('Auto-reply RPC error:', error);
+            setStatus('❌ RPC : ' + error.message, 'err');
+            return;
+          }
+
+          if (data && data.ok) {
             incrementAutoReplyCount();
             setStatus('Prêt', 'info');
+          } else {
+            setStatus('❌ ' + (data?.error || 'Erreur inconnue'), 'err');
           }
         } catch(e) {
           console.error(e);
-          setStatus('Prêt', 'info');
+          setStatus('❌ ' + e.message, 'err');
         }
       }, delay);
     }
@@ -411,7 +401,6 @@
       const r = await insertMessage({ content_type: 'text', text_body: text });
       if (r) {
         setStatus('✅ Envoyé', 'ok');
-        // 🤖 Déclencher la réponse automatique si c'est un profil de démo
         triggerAutoReply(text);
       }
     }
