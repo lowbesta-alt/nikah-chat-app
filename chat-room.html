@@ -34,8 +34,9 @@
 
   <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-3 text-center shrink-0">
     <p class="text-xs text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 10 messages gratuits.</p>
+    <p class="text-xs text-amber-700 mb-3">Pour continuer cette belle discussion en illimité, débloquez pour 600 FCFA / 1 $.</p>
     <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
-      💳 Débloquer pour 600 FCFA
+      💳 Demander le déblocage — 600 FCFA
     </button>
   </div>
 
@@ -370,11 +371,35 @@
       } catch (err) { setStatus('❌ Micro : ' + err.message, 'err'); }
     });
 
+    // 🔐 Demander un déblocage (l'admin doit valider)
     async function unlockConversation() {
-      if (!confirm('Débloquer pour 600 FCFA / 1 $ ?')) return;
-      const { data, error } = await supabaseClient.rpc('unlock_conversation', { p_conversation_id: conversationId });
+      const provider = prompt(
+        'Comment souhaitez-vous payer ?\n\n' +
+        '1. Mobile Money (MTN / Orange)\n' +
+        '2. Wave\n' +
+        '3. Carte bancaire\n\n' +
+        'Tapez 1, 2 ou 3 :'
+      );
+      if (!provider) return;
+      const map = { '1': 'mobile_money', '2': 'wave', '3': 'carte' };
+      const p = map[provider.trim()] || 'mobile_money';
+
+      const { error } = await supabaseClient.rpc('request_unlock', {
+        p_conversation_id: conversationId,
+        p_provider: p
+      });
+
       if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-      if (data) { setStatus('✅ Débloqué !', 'ok'); await refreshQuota(); }
+
+      alert(
+        '✅ Demande envoyée !\n\n' +
+        'Un administrateur va vérifier votre paiement sous peu.\n\n' +
+        'Étapes :\n' +
+        '1. Envoyez 600 FCFA au numéro que l\'admin vous indiquera\n' +
+        '2. Une fois reçu, l\'admin débloquera la conversation\n' +
+        '3. Revenez vérifier dans quelques minutes'
+      );
+      setStatus('⏳ Demande envoyée — En attente de validation admin', 'info');
     }
 
     async function reportUser() {
