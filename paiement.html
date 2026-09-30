@@ -19,7 +19,7 @@
 
   <main class="max-w-2xl mx-auto p-4">
 
-    <!-- En-tête -->
+    <!-- EN-TÊTE -->
     <div class="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white rounded-2xl shadow-lg p-6 mb-4 text-center">
       <div class="text-4xl mb-2">🔓</div>
       <h1 class="text-xl font-bold mb-1">Débloquer la conversation</h1>
@@ -27,58 +27,62 @@
       <p class="text-xs text-emerald-100 mt-2">Conversation avec <strong id="otherName">…</strong></p>
     </div>
 
-    <!-- Bouton invitation -->
+    <!-- Page principale : invitation + bouton -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
-      <p class="text-sm text-slate-600 mb-3 text-center">
-        🔒 Vos informations de paiement sont protégées. Cliquez ci-dessous pour les afficher.
+      <p class="text-sm text-slate-600 text-center mb-4 leading-relaxed">
+        Vos informations de paiement sont protégées.<br>
+        Cliquez sur le bouton ci-dessous pour les afficher.
       </p>
-      <button id="toggleInfoBtn" onclick="toggleInfo()"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-4 rounded-xl flex items-center justify-between transition active:scale-[0.99]">
-        <span class="flex items-center gap-2 text-left">
-          <span class="text-xl">🔐</span>
-          <span class="text-sm">Cliquez ici pour afficher les informations de paiement</span>
-        </span>
+      <button id="toggleBtn" onclick="toggleInfo()"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-4 px-5 rounded-xl flex items-center justify-center gap-3 transition active:scale-[0.99]">
+        <span class="text-xl">🔐</span>
+        <span class="text-sm">Cliquez ici pour afficher les informations de paiement</span>
         <span id="toggleArrow" class="text-lg transition-transform duration-300">▼</span>
       </button>
     </div>
 
-    <!-- Bloc caché (accordéon) -->
+    <!-- Bloc dynamique au clic -->
     <div id="infoBlock" class="hidden space-y-3 mb-4">
 
       <!-- MTN -->
-      <div id="payMtn" class="bg-white rounded-2xl shadow border-2 border-yellow-300 p-4">
-        <p class="text-xs text-yellow-700 font-semibold mb-1">📱 MTN Mobile Money</p>
-        <p class="font-bold text-yellow-900 text-2xl tracking-wide mb-2" id="mtnNum"></p>
-        <div class="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
-          <p class="text-[11px] text-yellow-700 mb-0.5">Nom du titulaire :</p>
-          <p class="font-semibold text-yellow-900 text-sm" id="mtnName"></p>
+      <div class="bg-white rounded-2xl shadow border-2 border-yellow-300 p-4">
+        <p class="text-xs text-yellow-700 font-semibold mb-2">📱 MTN Mobile Money</p>
+        <p class="font-bold text-yellow-900 text-2xl tracking-wide mb-3" id="mtnNum">—</p>
+        <div class="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+          <p class="text-[11px] text-yellow-700 mb-0.5">Nom complet :</p>
+          <p class="font-semibold text-yellow-900" id="mtnName">—</p>
         </div>
       </div>
 
       <!-- Orange -->
-      <div id="payOrange" class="bg-white rounded-2xl shadow border-2 border-orange-300 p-4">
-        <p class="text-xs text-orange-700 font-semibold mb-1">🟠 Orange Money</p>
-        <p class="font-bold text-orange-900 text-2xl tracking-wide mb-2" id="orangeNum"></p>
-        <div class="bg-orange-50 rounded-lg p-2 border border-orange-200">
-          <p class="text-[11px] text-orange-700 mb-0.5">Nom du titulaire :</p>
-          <p class="font-semibold text-orange-900 text-sm" id="orangeName"></p>
+      <div class="bg-white rounded-2xl shadow border-2 border-orange-300 p-4">
+        <p class="text-xs text-orange-700 font-semibold mb-2">🟠 Orange Money</p>
+        <p class="font-bold text-orange-900 text-2xl tracking-wide mb-3" id="orangeNum">—</p>
+        <div class="bg-orange-50 rounded-lg p-3 border border-orange-200">
+          <p class="text-[11px] text-orange-700 mb-0.5">Nom complet :</p>
+          <p class="font-semibold text-orange-900" id="orangeName">—</p>
         </div>
       </div>
 
-      <!-- Bloc d'aide diaspora / international -->
+      <!-- Bloc d'aide et de validation -->
       <div class="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4">
-        <p class="text-xs text-blue-800 font-bold mb-2">🌍 Paiement depuis l'international / la diaspora</p>
-        <p class="text-sm text-blue-900 whitespace-pre-line leading-relaxed" id="diasporaText"></p>
-        <a id="whatsappLink" href="#" target="_blank"
-           class="mt-3 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-3 rounded-xl text-sm">
-          📲 Envoyer la capture sur WhatsApp
+        <p class="text-xs text-blue-800 font-bold mb-3">🌍 Information importante</p>
+        <p class="text-sm text-blue-900 leading-relaxed whitespace-pre-line mb-4" id="helpText"></p>
+
+        <!-- 🎯 BOUTON WHATSAPP DIRECT -->
+        <a id="whatsappBtn" href="#" target="_blank"
+           class="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 px-5 rounded-xl transition active:scale-[0.99] shadow-lg">
+          <span class="text-2xl">📲</span>
+          <span>Envoyer la capture sur WhatsApp</span>
         </a>
-        <p class="text-xs text-blue-700 mt-2">WhatsApp : <strong id="whatsappNumDisplay">—</strong></p>
+        <p class="text-[11px] text-blue-700 text-center mt-2">
+          Numéro : <strong id="whatsappNumDisplay">+237 671 70 68 86</strong>
+        </p>
       </div>
 
     </div>
 
-    <!-- Formulaire de confirmation -->
+    <!-- Formulaire -->
     <form id="payForm" class="bg-white rounded-2xl shadow p-5 space-y-4 hidden">
       <h2 class="font-bold text-lg">✅ Confirmer votre paiement</h2>
       <p class="text-xs text-slate-500">Une fois le paiement effectué, remplissez ce formulaire.</p>
@@ -134,8 +138,6 @@
     function toggleInfo() {
       const block = document.getElementById('infoBlock');
       const arrow = document.getElementById('toggleArrow');
-      const btn = document.getElementById('toggleInfoBtn');
-
       if (block.classList.contains('hidden')) {
         block.classList.remove('hidden');
         arrow.style.transform = 'rotate(180deg)';
@@ -152,46 +154,33 @@
 
       if (!otherUserId) { show('❌ Utilisateur non précisé', 'err'); return; }
 
-      const { data: other } = await supabaseClient.from('profiles')
-        .select('username').eq('id', otherUserId).single();
+      const { data: other } = await supabaseClient.from('profiles').select('username').eq('id', otherUserId).single();
       if (other) document.getElementById('otherName').textContent = other.username;
 
-      const { data: convId } = await supabaseClient.rpc('get_or_create_conversation', {
-        p_other_user: otherUserId
-      });
+      const { data: convId } = await supabaseClient.rpc('get_or_create_conversation', { p_other_user: otherUserId });
       conversationId = convId;
 
       const { data: s } = await supabaseClient.from('payment_settings').select('*').eq('id', 1).single();
       if (s) {
-        // MTN
-        if (s.mtn_number) {
-          document.getElementById('mtnNum').textContent = s.mtn_number;
-          document.getElementById('mtnName').textContent = s.mtn_name || '(non précisé)';
-        } else {
-          document.getElementById('payMtn').classList.add('hidden');
-        }
+        document.getElementById('mtnNum').textContent = s.mtn_number || '(non configuré)';
+        document.getElementById('mtnName').textContent = s.mtn_name || '(non précisé)';
+        document.getElementById('orangeNum').textContent = s.orange_number || '(non configuré)';
+        document.getElementById('orangeName').textContent = s.orange_name || '(non précisé)';
 
-        // Orange
-        if (s.orange_number) {
-          document.getElementById('orangeNum').textContent = s.orange_number;
-          document.getElementById('orangeName').textContent = s.orange_name || '(non précisé)';
-        } else {
-          document.getElementById('payOrange').classList.add('hidden');
-        }
-
-        // WhatsApp
+        // 🎯 Numéro WhatsApp +237 671 70 68 86
         const whatsNum = s.whatsapp_contact || '+237 671 70 68 86';
-        const clean = whatsNum.replace(/[^0-9]/g, '');
-        document.getElementById('whatsappNumDisplay').textContent = whatsNum;
-        document.getElementById('whatsappLink').href = 'https://wa.me/' + clean;
+        const whatsClean = whatsNum.replace(/[^0-9]/g, ''); // ex: 237671706886
 
-        // Texte diaspora (fixe)
-        const diasporaText = 
+        document.getElementById('whatsappNumDisplay').textContent = whatsNum;
+        document.getElementById('whatsappBtn').href = 'https://wa.me/' + whatsClean;
+
+        // Texte exact
+        const helpText = 
           "Pour nos clients de la diaspora / de l'international, vous pouvez envoyer les fonds instantanément sur ces mêmes numéros Mobile Money en utilisant des applications de transfert sécurisées comme Sendwave ou WorldRemit.\n\n" +
           "Une fois le paiement effectué, veuillez envoyer la capture d'écran ou la référence du reçu sur notre numéro WhatsApp au " + whatsNum + " pour valider immédiatement votre commande.";
-        document.getElementById('diasporaText').textContent = diasporaText;
 
-        // Afficher le formulaire
+        document.getElementById('helpText').textContent = helpText;
+
         if (s.mtn_number || s.orange_number) {
           document.getElementById('payForm').classList.remove('hidden');
         }
@@ -211,12 +200,7 @@
 
       if (error) { show('❌ ' + error.message, 'err'); return; }
 
-      show(
-        '✅ Demande envoyée !\n\n' +
-        'L\'administrateur va vérifier votre paiement.\n' +
-        'Vous recevrez une notification dès validation.',
-        'ok'
-      );
+      show('✅ Demande envoyée !\n\nL\'administrateur va vérifier votre paiement.', 'ok');
       document.getElementById('payForm').reset();
     });
   </script>
