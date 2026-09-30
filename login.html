@@ -55,7 +55,7 @@
     const msg = document.getElementById('message');
     function showMessage(t, c) {
       msg.textContent = t;
-      msg.className = 'mt-4 p-3 rounded-lg text-sm ' + (c === 'ok'
+      msg.className = 'mt-4 p-3 rounded-lg text-sm whitespace-pre-line ' + (c === 'ok'
         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         : 'bg-red-50 text-red-700 border border-red-200');
       msg.classList.remove('hidden');
@@ -83,12 +83,24 @@
         return;
       }
 
-      // 🔍 Vérifier si le profil est complet
+      // 🔍 Vérifier si le compte est BLOQUÉ
       const { data: profile } = await supabaseClient
         .from('profiles')
-        .select('country, city, birth_date, gender')
+        .select('is_blocked, blocked_reason, country, birth_date, gender')
         .eq('id', data.user.id)
         .single();
+
+      if (profile?.is_blocked) {
+        await supabaseClient.auth.signOut();
+        showMessage(
+          '🚫 Votre compte a été suspendu.\n\n' +
+          'Raison : ' + (profile.blocked_reason || 'Non précisée') + '\n\n' +
+          'Contactez l\'administrateur pour plus d\'informations.',
+          'err'
+        );
+        btn.disabled = false; btn.textContent = 'Se connecter';
+        return;
+      }
 
       const isComplete = profile && profile.country && profile.birth_date && profile.gender;
 
