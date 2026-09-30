@@ -371,35 +371,9 @@
       } catch (err) { setStatus('❌ Micro : ' + err.message, 'err'); }
     });
 
-    // 🔐 Demander un déblocage (l'admin doit valider)
-    async function unlockConversation() {
-      const provider = prompt(
-        'Comment souhaitez-vous payer ?\n\n' +
-        '1. Mobile Money (MTN / Orange)\n' +
-        '2. Wave\n' +
-        '3. Carte bancaire\n\n' +
-        'Tapez 1, 2 ou 3 :'
-      );
-      if (!provider) return;
-      const map = { '1': 'mobile_money', '2': 'wave', '3': 'carte' };
-      const p = map[provider.trim()] || 'mobile_money';
-
-      const { error } = await supabaseClient.rpc('request_unlock', {
-        p_conversation_id: conversationId,
-        p_provider: p
-      });
-
-      if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-
-      alert(
-        '✅ Demande envoyée !\n\n' +
-        'Un administrateur va vérifier votre paiement sous peu.\n\n' +
-        'Étapes :\n' +
-        '1. Envoyez 600 FCFA au numéro que l\'admin vous indiquera\n' +
-        '2. Une fois reçu, l\'admin débloquera la conversation\n' +
-        '3. Revenez vérifier dans quelques minutes'
-      );
-      setStatus('⏳ Demande envoyée — En attente de validation admin', 'info');
+    // 💳 Redirection vers la page de paiement
+    function unlockConversation() {
+      window.location.href = 'paiement.html?user=' + otherUserId;
     }
 
     async function reportUser() {
