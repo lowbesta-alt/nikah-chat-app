@@ -20,7 +20,10 @@
     <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
       <a href="chat.html" class="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-full whitespace-nowrap active:bg-emerald-700">← Menu</a>
       <div class="flex-1 min-w-0">
-        <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
+        <div class="flex items-center gap-2">
+          <span id="onlineDot" class="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0"></span>
+          <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
+        </div>
         <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
       </div>
       <button onclick="reportUser()" class="text-red-500 text-lg px-1">🚩</button>
@@ -56,15 +59,9 @@
   <div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end">
     <div class="w-full bg-white rounded-t-2xl p-4 safe-bottom">
       <p class="text-sm text-slate-600 text-center mb-3 font-medium">Que faire de ce message ?</p>
-      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium active:bg-slate-200">
-        🗑️ Supprimer pour moi
-      </button>
-      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium active:bg-red-100">
-        🗑️ Supprimer pour tout le monde
-      </button>
-      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm active:bg-slate-100">
-        Annuler
-      </button>
+      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium active:bg-slate-200">🗑️ Supprimer pour moi</button>
+      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium active:bg-red-100">🗑️ Supprimer pour tout le monde</button>
+      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm active:bg-slate-100">Annuler</button>
     </div>
   </div>
 
@@ -73,12 +70,14 @@
     let conversationId = null;
     let otherUserId = null;
     let otherUserName = '';
+    let otherUserData = null;    // 🆕 données complètes du seed
     let isSeedProfile = false;
     let channel = null;
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
     let selectedMsg = null;
+    let presenceInterval = null;
 
     const displayedIds = new Set();
     let deletedForMe = new Set();
@@ -119,131 +118,175 @@
     }
 
     // ============================================================
-    // 🤖 RÉPONSES AUTOMATIQUES INTELLIGENTES
+    // 🟢 PRÉSENCE EN LIGNE
+    // ============================================================
+    function updatePresenceDot(lastSeenAt) {
+      const dot = document.getElementById('onlineDot');
+      if (!lastSeenAt) { dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0'; return; }
+      const diffMin = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
+      if (diffMin < 5) {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse';
+        dot.title = 'En ligne';
+      } else {
+        dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0';
+        dot.title = 'Hors ligne';
+      }
+    }
+
+    async function refreshOtherPresence() {
+      const { data } = await supabaseClient.from('profiles')
+        .select('last_seen_at').eq('id', otherUserId).single();
+      if (data) updatePresenceDot(data.last_seen_at);
+    }
+
+    async function updateMyPresence() {
+      if (!currentUser) return;
+      await supabaseClient.from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', currentUser.id);
+    }
+
+    // ============================================================
+    // 🤖 RÉPONSES AUTOMATIQUES INTELLIGENTES (avec vraies données)
     // ============================================================
     const MAX_AUTO_REPLIES = 5;
 
     function getAutoReplyCount() {
-      const key = 'auto_replies_' + conversationId;
-      return parseInt(localStorage.getItem(key) || '0');
+      return parseInt(localStorage.getItem('auto_replies_' + conversationId) || '0');
     }
     function incrementAutoReplyCount() {
-      const key = 'auto_replies_' + conversationId;
-      localStorage.setItem(key, (getAutoReplyCount() + 1).toString());
+      localStorage.setItem('auto_replies_' + conversationId, (getAutoReplyCount() + 1).toString());
     }
 
-    function generateReply(userText, count) {
-      const t = (userText || '').toLowerCase();
+    function calcAge(birthDate) {
+      if (!birthDate) return null;
+      const b = new Date(birthDate), t = new Date();
+      let age = t.getFullYear() - b.getFullYear();
+      const m = t.getMonth() - b.getMonth();
+      if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
+      return age;
+    }
 
-      // -------- DÉTECTION DES SUJETS --------
-      const isGreeting = /\b(salam|salem|salut|bonjour|bonsoir|coucou|hello|hi|salam aleykoum)\b/i.test(t);
-      const isFarewell = /\b(au revoir|à bientôt|bye|bonne nuit|salam aleykoum.*fin)\b/i.test(t);
-      const isMarriage = /\b(mariage|marier|épous|nikah|foyer|moitié|conjoint|époux|épouse|halal)\b/i.test(t);
-      const isAboutMe = /\b(qui (es|est)|présente|parle.*moi|connaître|toi|ton profil|ta personne)\b/i.test(t);
-      const isFamily = /\b(famille|enfant|parent|père|mère|frère|sœur|fratrie)\b/i.test(t);
-      const isReligion = /\b(islam|religio|prière|coran|allah|foi|pratique|pieux|pieuse|sunna|halal|haram|sunnah)\b/i.test(t);
+    function generateReply(userText, count, profile) {
+      const t = (userText || '').toLowerCase().trim();
+      const p = profile || {};
+
+      // -------- DÉTECTION --------
+      const asksWhere = /(^|\s)(où|ou)(\s|$|\?)|quelle ville|quel pays|tu vis|tu habites|vous habitez|tu es où|vous êtes où|tu es ou|dans quelle ville|dans quel pays|région/i.test(t);
+      const asksAge = /\b(âge|quel age|quelle age|tu as quel|vous avez quel|ton age|votre age|naissance)\b/i.test(t);
+      const asksWork = /\b(travail|travaillez|travaille|profession|métier|job|emploi|carrière|que fais-tu|que faites-vous|études|étudie|université|diplôme|bac)\b/i.test(t);
+      const asksFamily = /\b(famille|enfant|parent|père|mère|frère|sœur|fratrie)\b/i.test(t);
+      const asksKids = /\b(des enfants|tu as des enfants|vous avez des enfants|déjà.*enfants?|combien.*enfants?)\b/i.test(t);
+      const asksReligion = /\b(islam|religio|prière|coran|allah|foi|pratique|pieux|pieuse|sunna|halal|haram)\b/i.test(t);
+      const asksMarriage = /\b(mariage|marier|épous|nikah|foyer|moitié|conjoint|époux|épouse)\b/i.test(t);
+      const asksPhoto = /\b(photo|photos|image|visage|voir (ton|votre) (photo|visage))\b/i.test(t);
+      const asksMeeting = /\b(rencontrer|voir.*(réel|vrai)|rdv|rendez-vous|se voir)\b/i.test(t);
+      const asksAboutMe = /\b(qui (es|est)-tu|qui (êtes|etes)-vous|présente-toi|parle.*moi|connaître|ton profil)\b/i.test(t);
+      const howAreYou = /\b(ça va|comment (vas|allez|tu vas)|comment vas-tu|comment allez-vous|quoi de neuf|comment (se passe|va))\b/i.test(t);
+      const thanks = /\b(merci|choukran|barakallah|jazak)\b/i.test(t);
+      const isGreeting = /\b(salam|salem|salut|bonjour|bonsoir|coucou|hello|hi)\b/i.test(t);
+      const isFarewell = /\b(au revoir|à bientôt|bye|bonne nuit)\b/i.test(t);
       const isCompliment = /\b(belle|beau|jolie|sérieux|bien|intéressant|agréable|magnifique)\b/i.test(t);
-      const isCityQuestion = /\b(ville|région|pays|habite|habites|réside|résides|où (es|est|vis|vit)|douala|yaoundé|dakar|abidjan|paris|londres|casablanca|tunis|alger|new york)\b/i.test(t);
-      const isAgeQuestion = /\b(âge|age|ans|naissance|né|née|vieux|vieille|jeune)\b/i.test(t);
-      const isWorkQuestion = /\b(travail|travaille|profession|métier|job|emploi|carrière|études|étudie|université|diplôme|bac)\b/i.test(t);
-      const isKidsQuestion = /\b(enfants? (tu|avez|as)|vous avez des enfants|déjà.*enfants?)\b/i.test(t);
-      const isPhotoQuestion = /\b(photo|photos|image|visage|voir (ton|votre) (photo|visage))\b/i.test(t);
-      const isMeetingQuestion = /\b(rencontrer|voir.*(réel|vrai|personne)|rdv|rendez-vous|se voir)\b/i.test(t);
-      const isHowAreYou = /\b(ça va|comment (vas|allez|tu vas)|comment (vas)-tu|comment se passe|quoi de neuf)\b/i.test(t);
-      const isThanks = /\b(merci|choukran|barakallah|jazak)\b/i.test(t);
-      const isYesNo = /^(oui|non|peut-être|d'accord|ok|ah bon|vraiment)\b/i.test(t);
-      const isQuestion = /[?]$/.test(userText.trim());
 
-      // -------- RÉPONSES PRIORITAIRES --------
+      // -------- RÉPONSES AVEC VRAIES DONNÉES --------
 
-      // 1) Salutation
+      // 1) Localisation (avec sa vraie ville)
+      if (asksWhere) {
+        if (p.city && p.country) {
+          return `Je suis à ${p.city}, en ${p.country} Al hamdoulillah. Et vous, dans quelle ville êtes-vous ?`;
+        }
+        return "Je suis en Afrique Al hamdoulillah. Et vous, d'où écrivez-vous ?";
+      }
+
+      // 2) Âge (avec son vrai âge)
+      if (asksAge) {
+        const age = calcAge(p.birth_date);
+        if (age) return `J'ai ${age} ans Al hamdoulillah. Et vous, si ce n'est pas indiscret ?`;
+        return "Je suis dans la fleur de l'âge Al hamdoulillah. Et vous ?";
+      }
+
+      // 3) Travail (avec sa vraie profession)
+      if (asksWork) {
+        if (p.profession) {
+          return `Je suis ${p.profession}${p.education_level ? ' (' + p.education_level + ')' : ''} Al hamdoulillah. Et vous, que faites-vous dans la vie ?`;
+        }
+        return "Je travaille Al hamdoulillah. Et vous, quel est votre parcours professionnel ?";
+      }
+
+      // 4) Enfants (avec sa vraie situation)
+      if (asksKids || asksFamily) {
+        if (p.has_children && p.children_count > 0) {
+          return `Oui, j'ai ${p.children_count} enfant${p.children_count > 1 ? 's' : ''} Al hamdoulillah. Et vous ?`;
+        }
+        return "Non, je n'ai pas encore d'enfants. Fonder un foyer pieux est mon objectif InshaAllah. Et vous ?";
+      }
+
+      // 5) Statut marital
+      if (/\b(célibataire|divorcé|veuf|marié|situation|statut)\b/i.test(t)) {
+        const labels = { celibataire: 'célibataire', divorce: 'divorcé(e)', veuf: 'veuf(ve)', marie: 'marié(e)' };
+        if (p.marital_status && labels[p.marital_status]) {
+          return `Je suis ${labels[p.marital_status]} Al hamdoulillah. Et vous ?`;
+        }
+      }
+
+      // 6) Salutation
       if (isGreeting && count === 0) {
-        return "Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?";
+        return `Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?`;
       }
       if (isGreeting && count > 0) {
-        return "Salam 😊 Ravie de vous lire à nouveau. Comment se passe votre journée ?";
+        return "Salam 😊 Ravie de vous lire. Comment se passe votre journée ?";
       }
 
-      // 2) Demande sur la ville / pays
-      if (isCityQuestion) {
-        const cities = [
-          "Je vis actuellement à Douala, au Cameroun Al hamdoulillah. Et vous, dans quelle ville êtes-vous ?",
-          "Je suis basé(e) à Dakar, au Sénégal. C'est une belle ville paisible. Et vous ?"
-        ];
-        return cities[count % cities.length];
-      }
-
-      // 3) Demande sur l'âge
-      if (isAgeQuestion) {
-        return "J'ai 28 ans, Al hamdoulillah. Et vous, si ce n'est pas trop indiscret ?";
-      }
-
-      // 4) Demande sur le travail / études
-      if (isWorkQuestion) {
-        const replies = [
-          "Je suis ingénieur(e) de formation Al hamdoulillah. Le travail occupe une partie de ma journée, mais la foi et la famille restent mes priorités.",
-          "J'ai un Master et je travaille dans le secteur privé. Et vous, que faites-vous dans la vie ?"
-        ];
-        return replies[count % replies.length];
-      }
-
-      // 5) Demande sur les enfants
-      if (isKidsQuestion) {
-        return "Non, je n'ai pas encore d'enfants Al hamdoulillah. Et vous ?";
-      }
-
-      // 6) Demande de photo
-      if (isPhotoQuestion) {
-        return "Je préfère avancer dans la pudeur InshaAllah. Nous ferons connaissance petit à petit, si cela vous convient.";
-      }
-
-      // 7) Proposition de rencontre
-      if (isMeetingQuestion) {
-        return "C'est avec plaisir, mais InshaAllah après accord des familles. La pudeur est essentielle dans notre démarche.";
-      }
-
-      // 8) Comment vas-tu ?
-      if (isHowAreYou) {
+      // 7) Comment ça va
+      if (howAreYou) {
         return "Al hamdoulillah, je vais très bien. Merci de demander 😊 Et vous ?";
       }
 
-      // 9) Remerciement
-      if (isThanks) {
+      // 8) Remerciement
+      if (thanks) {
         return "Wa iyyak, qu'Allah vous récompense également 🌸";
       }
 
-      // 10) Question sur le mariage
-      if (isMarriage) {
+      // 9) Se présenter
+      if (asksAboutMe) {
+        let parts = [];
+        if (p.profession) parts.push(p.profession);
+        if (p.city) parts.push('basé(e) à ' + p.city);
+        const age = calcAge(p.birth_date);
+        if (age) parts.push(age + ' ans');
+        if (parts.length) {
+          return `Je suis ${parts.join(', ')} Al hamdoulillah. ${p.bio || 'Je cherche une personne sincère pour avancer vers le mariage InshaAllah.'}`;
+        }
+        return "Je suis quelqu'un de simple, pratiquant(e) et sincère dans ma démarche vers le mariage InshaAllah.";
+      }
+
+      // 10) Mariage
+      if (asksMarriage) {
         const replies = [
           "Oui, je cherche sincèrement à me marier InshaAllah, dans le respect de notre religion. Et vous, quelle est votre démarche ?",
           "Le mariage est une belle sunna. Je souhaite fonder un foyer pieux InshaAllah.",
-          "Je cherche une personne sérieuse pour avancer dans le halal InshaAllah. Vous êtes dans la même démarche ?"
+          "Je cherche une personne sérieuse pour avancer dans le halal InshaAllah."
         ];
         return replies[count % replies.length];
       }
 
-      // 11) Se présenter
-      if (isAboutMe) {
-        const replies = [
-          "Je suis quelqu'un de simple, pratiquant(e) et respectueux(se). La foi occupe une place centrale dans ma vie.",
-          "Je viens d'un milieu modeste et respectueux. J'aimerais avancer vers le mariage avec une personne sincère.",
-          "Je suis sérieux(se) dans ma démarche et j'espère trouver quelqu'un qui partage mes valeurs InshaAllah."
-        ];
-        return replies[count % replies.length];
+      // 11) Religion
+      if (asksReligion) {
+        if (p.religiosity_level) {
+          const labels = { modere: 'modérément pratiquant(e)', pratiquant: 'pratiquant(e)', tres_pratiquant: 'très pratiquant(e)' };
+          return `Je suis ${labels[p.religiosity_level]} Al hamdoulillah. La foi est le pilier de ma vie. Et vous ?`;
+        }
+        return "La foi est le pilier de ma vie Al hamdoulillah. Je fais de mon mieux chaque jour.";
       }
 
-      // 12) Famille
-      if (isFamily) {
-        return "La famille est très importante pour moi Al hamdoulillah. Fonder un foyer stable et pieux est mon objectif principal.";
+      // 12) Photo
+      if (asksPhoto) {
+        return "Je préfère avancer dans la pudeur InshaAllah. Nous ferons connaissance petit à petit, si cela vous convient.";
       }
 
-      // 13) Religion
-      if (isReligion) {
-        const replies = [
-          "La religion est le pilier de ma vie. Je fais de mon mieux pour pratiquer et m'améliorer chaque jour Al hamdoulillah.",
-          "La foi guide chaque aspect de ma vie. La prière, le Coran et la sunna sont essentiels pour moi."
-        ];
-        return replies[count % replies.length];
+      // 13) Rencontre
+      if (asksMeeting) {
+        return "InshaAllah après accord des familles. La pudeur et le respect de nos traditions sont essentiels.";
       }
 
       // 14) Compliment
@@ -251,36 +294,18 @@
         return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
       }
 
-      // 15) Oui/Non
-      if (isYesNo) {
-        const replies = [
-          "D'accord 😊 Pouvez-vous m'en dire un peu plus ?",
-          "Bien sûr. Et vous, quel est votre avis ?"
-        ];
-        return replies[count % replies.length];
-      }
-
-      // 16) Au revoir
+      // 15) Au revoir
       if (isFarewell) {
         return "Qu'Allah vous facilite et vous protège. À bientôt InshaAllah 🌸";
       }
 
-      // -------- RÉPONSES PAR DÉFAUT (progressives) --------
-      if (isQuestion) {
-        const qReplies = [
-          "Bonne question. Pourriez-vous m'en dire un peu plus sur votre démarche ?",
-          "Je vous répondrai avec plaisir InshaAllah. Peut-être pourrions-nous avancer pas à pas ?",
-          "C'est une belle question. Et vous, quel est votre parcours ?"
-        ];
-        return qReplies[count % qReplies.length];
-      }
-
+      // 16) Réponses par défaut progressives
       const defaults = [
         "Merci pour votre message. Comment se passe votre journée ?",
-        "Je vous remercie pour votre retour. Pourriez-vous m'en dire un peu plus sur vous ?",
-        "D'accord, je comprends. Et vous, quel est votre parcours ?",
+        "Je vous remercie. Pourriez-vous m'en dire un peu plus sur vous ?",
+        "D'accord. Et vous, quel est votre parcours ?",
         "Votre parcours m'intéresse. Quelles sont vos attentes dans le mariage InshaAllah ?",
-        "Excusez-moi, je dois m'absenter un moment. Nous reprendrons cette discussion plus tard InshaAllah. Qu'Allah vous facilite."
+        "Excusez-moi, je dois m'absenter. Nous reprendrons cette discussion plus tard InshaAllah."
       ];
       return defaults[Math.min(count, defaults.length - 1)];
     }
@@ -292,13 +317,12 @@
 
       const delay = 2000 + Math.random() * 2000;
 
-      // Afficher "en train d'écrire"
       setTimeout(() => {
         setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
       }, 500);
 
       setTimeout(async () => {
-        const reply = generateReply(userText, count);
+        const reply = generateReply(userText, count, otherUserData);
         try {
           const { data, error } = await supabaseClient.rpc('reply_as_seed', {
             p_conversation_id: conversationId,
@@ -306,28 +330,26 @@
           });
 
           if (error) {
-            console.error('RPC error:', error);
             setStatus('❌ ' + error.message, 'err');
             return;
           }
-
           if (!data || !data.ok) {
             setStatus('❌ ' + (data?.error || 'Erreur inconnue'), 'err');
             return;
           }
 
-          // 🎯 RÉCUPÉRER ET AFFICHER LE MESSAGE DIRECTEMENT (sans attendre le realtime)
+          // Récupérer et afficher le message directement
           if (data.msg_id) {
-            const { data: newMsg } = await supabaseClient
-              .from('messages').select('*').eq('id', data.msg_id).single();
+            const { data: newMsg } = await supabaseClient.from('messages').select('*').eq('id', data.msg_id).single();
             if (newMsg) await renderMessage(newMsg);
           }
 
           incrementAutoReplyCount();
           setStatus('Prêt', 'info');
           await refreshQuota();
+          // 🟢 Le seed vient de répondre → il est maintenant en ligne
+          await refreshOtherPresence();
         } catch(e) {
-          console.error(e);
           setStatus('❌ ' + e.message, 'err');
         }
       }, delay);
@@ -381,10 +403,7 @@
       const btn = document.getElementById('deleteAllBtn');
       if (mine) btn.classList.remove('hidden'); else btn.classList.add('hidden');
     }
-    function closeMenu() {
-      document.getElementById('msgMenu').classList.add('hidden');
-      selectedMsg = null;
-    }
+    function closeMenu() { document.getElementById('msgMenu').classList.add('hidden'); selectedMsg = null; }
     function deleteForMe() {
       if (!selectedMsg) return;
       deletedForMe.add(selectedMsg); saveDeletedForMe();
@@ -435,13 +454,17 @@
 
       if (!otherUserId) { setStatus('❌ Utilisateur non précisé', 'err'); return; }
 
+      // 🎯 Charger TOUTES les données du profil autre
       const { data: other } = await supabaseClient.from('profiles')
-        .select('username, city, country').eq('id', otherUserId).single();
+        .select('*').eq('id', otherUserId).single();
       if (other) {
+        otherUserData = other;
         otherUserName = other.username || 'Utilisateur';
         isSeedProfile = otherUserName.startsWith('seed_');
         document.getElementById('otherName').textContent = otherUserName;
         document.getElementById('otherInfo').textContent = (other.city||'') + (other.country ? ', '+other.country : '');
+        // 🟢 Initialiser le point de présence
+        updatePresenceDot(other.last_seen_at);
       }
 
       const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', {
@@ -465,7 +488,17 @@
       await markAllAsRead();
       await refreshQuota();
 
-      // Tentative de realtime (au cas où ça marche)
+      // 🟢 Mettre à jour ma présence + rafraîchir celle de l'autre
+      await updateMyPresence();
+      await refreshOtherPresence();
+
+      // 🟢 Rafraîchir régulièrement
+      presenceInterval = setInterval(async () => {
+        await updateMyPresence();
+        await refreshOtherPresence();
+      }, 30000);
+
+      // Realtime (tentative)
       try {
         channel = supabaseClient.channel('conv:' + conversationId)
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
@@ -596,6 +629,11 @@
     }
 
     document.getElementById('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    // Nettoyage
+    window.addEventListener('beforeunload', () => {
+      if (presenceInterval) clearInterval(presenceInterval);
+    });
 
     init();
   </script>
