@@ -14,14 +14,13 @@
       <div class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
-      <nav class="flex items-center gap-3">
-        <a href="dashboard.html" class="text-2xl" title="Mon profil">👤</a>
-        <a href="chat.html" class="relative text-2xl" title="Messages">
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="dashboard.html" class="text-slate-600 hover:text-emerald-700">👤</a>
+        <a href="chat.html" class="text-slate-600 hover:text-emerald-700 relative">
           🔔
-          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
+          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
         </a>
-        <a href="admin.html" id="adminBtn" class="hidden text-2xl" title="Admin">⚙️</a>
-        <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
+        <button onclick="logout()" class="text-red-600 hover:underline">Déco</button>
       </nav>
     </div>
   </header>
@@ -43,7 +42,6 @@
           <option value="tres_pratiquant">Très pratiquant</option>
         </select>
       </div>
-
       <div class="grid grid-cols-2 gap-3">
         <select id="filter_veil" class="px-3 py-2 border rounded-lg bg-white">
           <option value="">Tenue (femmes)</option>
@@ -52,19 +50,17 @@
           <option value="none">Sans voile</option>
         </select>
         <select id="filter_marital" class="px-3 py-2 border rounded-lg bg-white">
-          <option value="">Situation maritale</option>
+          <option value="">Situation</option>
           <option value="celibataire">Célibataire</option>
           <option value="divorce">Divorcé(e)</option>
           <option value="veuf">Veuf(ve)</option>
-          <option value="marie">Marié(e) (polygamie)</option>
+          <option value="marie">Marié(e)</option>
         </select>
       </div>
-
       <div class="grid grid-cols-2 gap-3">
         <input type="text" id="filter_country" placeholder="Pays" class="px-3 py-2 border rounded-lg">
         <input type="text" id="filter_city" placeholder="Ville" class="px-3 py-2 border rounded-lg">
       </div>
-
       <div class="grid grid-cols-3 gap-3">
         <div>
           <label class="block text-xs text-slate-500 mb-1">Âge min</label>
@@ -83,14 +79,13 @@
           </select>
         </div>
       </div>
-
       <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-lg font-semibold">
         🔍 Rechercher
       </button>
     </form>
 
     <p id="resultsInfo" class="text-sm text-slate-500 mb-3 hidden"></p>
-    <div id="results" class="space-y-3"></div>
+    <div id="results" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
   </main>
 
   <script>
@@ -102,28 +97,18 @@
     async function loadNotifBadge() {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) return;
-      const { data: convs } = await supabaseClient
-        .from('conversations').select('id')
+      const { data: convs } = await supabaseClient.from('conversations').select('id')
         .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
       if (!convs || !convs.length) return;
       const convIds = convs.map(c => c.id);
-      const { count } = await supabaseClient
-        .from('messages').select('*', { count: 'exact', head: true })
+      const { count } = await supabaseClient.from('messages').select('*', { count: 'exact', head: true })
         .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
       const badge = document.getElementById('notifBadge');
       if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
       else badge.classList.add('hidden');
     }
 
-    async function checkAdmin() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) return;
-      const { data: p } = await supabaseClient.from('profiles').select('is_admin').eq('id', user.id).single();
-      if (p?.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
-    }
-
     loadNotifBadge();
-    checkAdmin();
     setInterval(loadNotifBadge, 15000);
 
     function calcAge(birthDate) {
@@ -135,21 +120,13 @@
       return age;
     }
 
-    function avatarHtml(p) {
-      if (p.avatar_url) return `<img src="${p.avatar_url}" class="w-14 h-14 rounded-full object-cover shrink-0">`;
-      return `<div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-lg shrink-0">${(p.username||'?').charAt(0).toUpperCase()}</div>`;
-    }
-
-    const maritalLabels = { celibataire: 'Célibataire', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)', marie: 'Marié(e)' };
-    const religiosityLabels = { modere: 'Modéré', pratiquant: 'Pratiquant', tres_pratiquant: 'Très pratiquant' };
-
     async function search(filters = {}) {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
 
       const results = document.getElementById('results');
       const info = document.getElementById('resultsInfo');
-      results.innerHTML = '<p class="text-center text-slate-400 py-6">Recherche…</p>';
+      results.innerHTML = '<p class="text-center text-slate-400 py-6 col-span-full">Recherche…</p>';
 
       let q = supabaseClient.from('profiles').select('*').neq('id', user.id);
       if (filters.gender) q = q.eq('gender', filters.gender);
@@ -165,40 +142,32 @@
 
       const { data, error } = await q.order('last_seen_at', { ascending: false, nullsFirst: false }).limit(50);
 
-      if (error) { results.innerHTML = '<p class="text-red-600">Erreur: ' + error.message + '</p>'; return; }
-      if (!data.length) { info.classList.add('hidden'); results.innerHTML = '<p class="text-slate-500 text-center py-10">Aucun profil trouvé.</p>'; return; }
+      if (error) { results.innerHTML = '<p class="text-red-600 col-span-full">Erreur: ' + error.message + '</p>'; return; }
+      if (!data.length) { info.classList.add('hidden'); results.innerHTML = '<p class="text-slate-500 text-center py-10 col-span-full">Aucun profil trouvé.</p>'; return; }
 
       info.textContent = data.length + ' profil(s) trouvé(s)';
       info.classList.remove('hidden');
 
       results.innerHTML = data.map(p => {
         const age = calcAge(p.birth_date);
-        const tags = [];
-        if (p.veil_type === 'hijab') tags.push('🧕 Hijab');
-        if (p.veil_type === 'niqab') tags.push('🖤 Niqab');
-        if (p.marital_status) tags.push(maritalLabels[p.marital_status] || p.marital_status);
-        if (p.religiosity_level) tags.push(religiosityLabels[p.religiosity_level] || p.religiosity_level);
-        if (p.has_children) tags.push('👶 ' + (p.children_count || 1));
-        if (p.profession) tags.push('💼 ' + p.profession);
+        const initials = (p.username || '?').charAt(0).toUpperCase();
+        const photo = p.avatar_url
+          ? '<img src="' + p.avatar_url + '" class="w-full h-full object-cover">'
+          : '<div class="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-700 font-bold text-4xl">' + initials + '</div>';
+
+        const isOnline = p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5);
 
         return `
-          <div class="bg-white rounded-xl shadow p-4">
-            <div class="flex items-start gap-3">
-              ${avatarHtml(p)}
-              <div class="flex-1 min-w-0">
-                <p class="font-semibold truncate">${p.username || 'Anonyme'}${age ? ' · ' + age + ' ans' : ''}</p>
-                <p class="text-sm text-slate-500 truncate">
-                  ${p.city || ''}${p.city && p.country ? ', ' : ''}${p.country || ''}
-                </p>
-                <div class="flex flex-wrap gap-1 mt-2">
-                  ${tags.map(t => `<span class="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">${t}</span>`).join('')}
-                </div>
-              </div>
+          <a href="profile-view.html?id=${p.id}" class="block bg-white rounded-2xl shadow overflow-hidden hover:shadow-lg transition">
+            <div class="relative aspect-square bg-slate-100">
+              ${photo}
+              ${isOnline ? '<span class="absolute top-2 right-2 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>' : ''}
             </div>
-            <a href="chat-room.html?user=${p.id}" class="mt-3 block w-full text-center bg-emerald-600 text-white text-sm py-2 rounded-lg">
-              💬 Discuter
-            </a>
-          </div>
+            <div class="p-3">
+              <p class="font-semibold text-slate-800 text-sm truncate">${p.username || 'Anonyme'}</p>
+              <p class="text-xs text-slate-500 truncate">${age ? age + ' ans' : ''}${age && (p.city || p.country) ? ' · ' : ''}${p.city || ''}${p.city && p.country ? ', ' : ''}${p.country || ''}</p>
+            </div>
+          </a>
         `;
       }).join('');
     }
