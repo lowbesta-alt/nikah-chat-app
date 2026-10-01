@@ -155,13 +155,15 @@
           ? '<img src="' + p.avatar_url + '" class="w-full h-full object-cover">'
           : '<div class="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-700 font-bold text-4xl">' + initials + '</div>';
 
-        const isOnline = p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5);
+        // 🟢 Les seeds sont toujours considérés en ligne
+        const isSeed = (p.username || '').startsWith('seed_');
+        const isOnline = isSeed || (p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5));
 
         return `
           <a href="profile-view.html?id=${p.id}" class="block bg-white rounded-2xl shadow overflow-hidden hover:shadow-lg transition">
             <div class="relative aspect-square bg-slate-100">
               ${photo}
-              ${isOnline ? '<span class="absolute top-2 right-2 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>' : ''}
+              ${isOnline ? '<span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow"></span>' : '<span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-gray-400 border-2 border-white shadow"></span>'}
             </div>
             <div class="p-3">
               <p class="font-semibold text-slate-800 text-sm truncate">${p.username || 'Anonyme'}</p>
