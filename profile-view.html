@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profil — InshaAllah</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-emerald-50 min-h-screen">
+  <header class="bg-white shadow-sm sticky top-0 z-40">
+    <div class="max-w-2xl mx-auto flex items-center gap-3 px-4 py-3">
+      <button onclick="history.back()" class="text-emerald-700 font-bold">← Retour</button>
+      <span class="font-bold text-emerald-700 flex-1 text-center">Profil</span>
+      <span class="w-14"></span>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto p-4 pb-24">
+
+    <!-- PHOTO PRINCIPALE -->
+    <div class="bg-white rounded-2xl shadow overflow-hidden mb-4">
+      <div id="mainPhoto" class="w-full aspect-square bg-emerald-100 flex items-center justify-center text-6xl">
+        <span id="initial">?</span>
+      </div>
+
+      <!-- PHOTOS SECONDAIRES -->
+      <div id="extraPhotos" class="grid grid-cols-3 gap-1 p-1 bg-slate-100 hidden"></div>
+    </div>
+
+    <!-- INFOS PRINCIPALES -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-800" id="name">—</h1>
+          <p class="text-sm text-slate-500 mt-1" id="location">—</p>
+          <p class="text-sm text-slate-500 mt-1" id="age_gender">—</p>
+        </div>
+        <span id="presenceDot" class="w-3 h-3 rounded-full bg-gray-400 shrink-0 mt-2"></span>
+      </div>
+    </div>
+
+    <!-- BADGES -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4">
+      <h2 class="font-bold text-slate-700 mb-3 text-sm">📋 Informations</h2>
+      <div id="badges" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- À PROPOS -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4" id="bioBlock">
+      <h2 class="font-bold text-slate-700 mb-2 text-sm">💬 À propos</h2>
+      <p class="text-sm text-slate-600 whitespace-pre-line leading-relaxed" id="bio">—</p>
+    </div>
+
+    <!-- SOCIO-ÉCO -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4" id="socioBlock">
+      <h2 class="font-bold text-slate-700 mb-3 text-sm">💼 Situation</h2>
+      <div class="space-y-2 text-sm">
+        <p><span class="text-slate-500">Profession :</span> <span id="profession" class="font-medium">—</span></p>
+        <p><span class="text-slate-500">Études :</span> <span id="education" class="font-medium">—</span></p>
+        <p><span class="text-slate-500">Revenus :</span> <span id="income" class="font-medium">—</span></p>
+        <p><span class="text-slate-500">Cadre de vie :</span> <span id="living" class="font-medium">—</span></p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOUTON FIXE EN BAS -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 max-w-2xl mx-auto">
+    <a id="chatBtn" href="#"
+       class="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl">
+      💬 Envoyer un message
+    </a>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profileId = params.get('id');
+
+    function setText(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val || '—';
+    }
+
+    function hide(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    }
+
+    async function loadProfile() {
+      if (!profileId) { alert('Profil non précisé'); return; }
+
+      const { data: user } = await supabaseClient.auth.getUser();
+      if (!user?.user) { window.location.href = 'login.html'; return; }
+
+      const { data: p, error } = await supabaseClient.from('profiles').select('*').eq('id', profileId).single();
+      if (error || !p) { alert('Profil introuvable'); return; }
+
+      // Nom
+      setText('name', p.username || 'Utilisateur');
+      setText('initial', (p.username || '?').charAt(0).toUpperCase());
+
+      // Localisation
+      const loc = [(p.city || ''), (p.country || '')].filter(Boolean).join(', ');
+      setText('location', loc || 'Localisation non précisée');
+
+      // Âge
+      let ageStr = '';
+      if (p.birth_date) {
+        const b = new Date(p.birth_date), t = new Date();
+        let age = t.getFullYear() - b.getFullYear();
+        const m = t.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
+        ageStr = age + ' ans';
+      }
+      const genderStr = p.gender === 'male' ? 'Homme' : 'Femme';
+      setText('age_gender', [ageStr, genderStr].filter(Boolean).join(' · '));
+
+      // Présence
+      const dot = document.getElementById('presenceDot');
+      if (p.last_seen_at) {
+        const diffMin = (Date.now() - new Date(p.last_seen_at).getTime()) / 60000;
+        dot.className = 'w-3 h-3 rounded-full shrink-0 mt-2 ' + (diffMin < 5 ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400');
+      }
+
+      // Photo principale
+      if (p.avatar_url) {
+        document.getElementById('mainPhoto').innerHTML = '<img src="' + p.avatar_url + '" class="w-full h-full object-cover">';
+      } else {
+        document.getElementById('mainPhoto').innerHTML = '<span class="text-8xl text-emerald-700 font-bold">' + (p.username || '?').charAt(0).toUpperCase() + '</span>';
+      }
+
+      // Photos secondaires
+      const extras = Array.isArray(p.extra_photos) ? p.extra_photos : [];
+      if (extras.length > 0) {
+        const box = document.getElementById('extraPhotos');
+        box.classList.remove('hidden');
+        box.innerHTML = extras.map(function(url) {
+          return '<div class="aspect-square bg-slate-200 rounded overflow-hidden">' +
+                 '<img src="' + url + '" class="w-full h-full object-cover">' +
+                 '</div>';
+        }).join('');
+      }
+
+      // Badges
+      const badges = [];
+      const relLbl = { modere: '🕌 Modéré', pratiquant: '🕌 Pratiquant', tres_pratiquant: '🕌 Très pratiquant' };
+      const marLbl = { celibataire: 'Célibataire', divorce: 'Divorcé(e)', veuf: 'Veuf(ve)', marie: 'Marié(e)' };
+      if (relLbl[p.religiosity_level]) badges.push(relLbl[p.religiosity_level]);
+      if (marLbl[p.marital_status]) badges.push(marLbl[p.marital_status]);
+      if (p.has_children) badges.push('👶 ' + (p.children_count || 1) + ' enfant(s)');
+      else badges.push('👶 Sans enfant');
+      if (p.veil_type === 'hijab') badges.push('🧕 Hijab');
+      if (p.veil_type === 'niqab') badges.push('🖤 Niqab');
+
+      document.getElementById('badges').innerHTML = badges.map(function(b) {
+        return '<span class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full">' + b + '</span>';
+      }).join('');
+
+      // Bio
+      if (p.bio) setText('bio', p.bio);
+      else hide('bioBlock');
+
+      // Socio
+      setText('profession', p.profession);
+      setText('education', p.education_level);
+      setText('income', p.income_range);
+      const livingLbl = { seul: 'Vit seul(e)', famille: 'Vit en famille' };
+      setText('living', livingLbl[p.living_situation] || p.living_situation);
+
+      if (!p.profession && !p.education_level && !p.income_range && !p.living_situation) {
+        hide('socioBlock');
+      }
+
+      // Bouton chat
+      document.getElementById('chatBtn').href = 'chat-room.html?user=' + p.id;
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>
