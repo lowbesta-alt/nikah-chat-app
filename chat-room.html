@@ -122,24 +122,20 @@
       return count || 0;
     }
 
-    function updatePresenceDot(lastSeenAt) {
+    function updatePresenceDot(lastSeenAt, isSeed) {
       const dot = document.getElementById('onlineDot');
-      if (!lastSeenAt) { dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0'; return; }
-      const diffMin = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
-      dot.className = diffMin < 5
-        ? 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse'
-        : 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0';
+      const isOnline = isSeed || (lastSeenAt && ((Date.now() - new Date(lastSeenAt).getTime()) / 60000 < 5));
+      dot.className = 'w-2.5 h-2.5 rounded-full shrink-0 ' + (isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400');
     }
     async function refreshOtherPresence() {
-      const { data } = await supabaseClient.from('profiles').select('last_seen_at').eq('id', otherUserId).single();
-      if (data) updatePresenceDot(data.last_seen_at);
+      const { data } = await supabaseClient.from('profiles').select('last_seen_at, is_seed').eq('id', otherUserId).single();
+      if (data) updatePresenceDot(data.last_seen_at, data.is_seed);
     }
     async function updateMyPresence() {
       if (!currentUser) return;
       await supabaseClient.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', currentUser.id);
     }
 
-    // 🧠 IA via Edge Function Supabase (clé cachée)
     async function askAI(userText) {
       setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
 
@@ -290,10 +286,11 @@
       const { data: other } = await supabaseClient.from('profiles').select('*').eq('id', otherUserId).single();
       if (other) {
         otherUserName = other.username || 'Utilisateur';
-        isSeedProfile = otherUserName.startsWith('seed_');
+        // 🎯 Détection du seed via le champ is_seed
+        isSeedProfile = other.is_seed === true;
         document.getElementById('otherName').textContent = otherUserName;
         document.getElementById('otherInfo').textContent = (other.city||'') + (other.country ? ', '+other.country : '');
-        updatePresenceDot(other.last_seen_at);
+        updatePresenceDot(other.last_seen_at, other.is_seed);
       }
 
       const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', { p_other_user: otherUserId });
