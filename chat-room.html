@@ -80,7 +80,7 @@
     let presenceInterval = null;
     let limitMessageSent = false;
 
-    const MAX_USER_MESSAGES = 5;   // 🎯 5 messages DE L'UTILISATEUR uniquement
+    const MAX_USER_MESSAGES = 5;
 
     const displayedIds = new Set();
     let deletedForMe = new Set();
@@ -120,180 +120,72 @@
       localStorage.setItem('deleted_msgs_' + currentUser.id, JSON.stringify([...deletedForMe]));
     }
 
-    // 🎯 Compter les messages UTILISATEUR uniquement
     async function countUserMessages() {
       const { count } = await supabaseClient
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
+        .from('messages').select('*', { count: 'exact', head: true })
         .eq('conversation_id', conversationId)
         .eq('sender_id', currentUser.id);
       return count || 0;
     }
 
     // ============================================================
-    // 🟢 PRÉSENCE EN LIGNE
+    // 🟢 PRÉSENCE
     // ============================================================
     function updatePresenceDot(lastSeenAt) {
       const dot = document.getElementById('onlineDot');
       if (!lastSeenAt) { dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0'; return; }
       const diffMin = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
-      if (diffMin < 5) {
-        dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse';
-      } else {
-        dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0';
-      }
+      dot.className = diffMin < 5
+        ? 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse'
+        : 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0';
     }
     async function refreshOtherPresence() {
-      const { data } = await supabaseClient.from('profiles')
-        .select('last_seen_at').eq('id', otherUserId).single();
+      const { data } = await supabaseClient.from('profiles').select('last_seen_at').eq('id', otherUserId).single();
       if (data) updatePresenceDot(data.last_seen_at);
     }
     async function updateMyPresence() {
       if (!currentUser) return;
-      await supabaseClient.from('profiles')
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq('id', currentUser.id);
+      await supabaseClient.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', currentUser.id);
     }
 
     // ============================================================
-    // 🤖 RÉPONSES AUTOMATIQUES INTELLIGENTES
+    // 🧠 IA : réponse dynamique via Edge Function Gemini
     // ============================================================
-    const MAX_AUTO_REPLIES = 5;
-
-    function getAutoReplyCount() {
-      return parseInt(localStorage.getItem('auto_replies_' + conversationId) || '0');
-    }
-    function incrementAutoReplyCount() {
-      localStorage.setItem('auto_replies_' + conversationId, (getAutoReplyCount() + 1).toString());
-    }
-
-    function calcAge(birthDate) {
-      if (!birthDate) return null;
-      const b = new Date(birthDate), t = new Date();
-      let age = t.getFullYear() - b.getFullYear();
-      const m = t.getMonth() - b.getMonth();
-      if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
-      return age;
-    }
-
-    function generateReply(userText, count, profile) {
-      const t = (userText || '').toLowerCase().trim();
-      const p = profile || {};
-
-      const asksWhere = /(^|\s)(où|ou)(\s|$|\?)|quelle ville|quel pays|tu vis|tu habites|vous habitez|tu es où|vous êtes où|dans quelle ville|dans quel pays|région/i.test(t);
-      const asksAge = /\b(âge|quel age|quelle age|tu as quel|vous avez quel|ton age|votre age|naissance)\b/i.test(t);
-      const asksWork = /\b(travail|travaillez|travaille|profession|métier|job|emploi|carrière|que fais-tu|que faites-vous|études|étudie|université|diplôme|bac)\b/i.test(t);
-      const asksFamily = /\b(famille|enfant|parent|père|mère|frère|sœur|fratrie)\b/i.test(t);
-      const asksKids = /\b(des enfants|tu as des enfants|vous avez des enfants|déjà.*enfants?|combien.*enfants?)\b/i.test(t);
-      const asksReligion = /\b(islam|religio|prière|coran|allah|foi|pratique|pieux|pieuse|sunna|halal|haram)\b/i.test(t);
-      const asksMarriage = /\b(mariage|marier|épous|nikah|foyer|moitié|conjoint|époux|épouse)\b/i.test(t);
-      const asksPhoto = /\b(photo|photos|image|visage|voir (ton|votre) (photo|visage))\b/i.test(t);
-      const asksMeeting = /\b(rencontrer|voir.*(réel|vrai)|rdv|rendez-vous|se voir)\b/i.test(t);
-      const asksAboutMe = /\b(qui (es|est)-tu|qui (êtes|etes)-vous|présente-toi|parle.*moi|connaître|ton profil)\b/i.test(t);
-      const howAreYou = /\b(ça va|comment (vas|allez|tu vas)|comment vas-tu|comment allez-vous|quoi de neuf|comment (se passe|va))\b/i.test(t);
-      const thanks = /\b(merci|choukran|barakallah|jazak)\b/i.test(t);
-      const isGreeting = /\b(salam|salem|salut|bonjour|bonsoir|coucou|hello|hi)\b/i.test(t);
-      const isFarewell = /\b(au revoir|à bientôt|bye|bonne nuit)\b/i.test(t);
-      const isCompliment = /\b(belle|beau|jolie|sérieux|bien|intéressant|agréable|magnifique)\b/i.test(t);
-
-      if (asksWhere) {
-        if (p.city && p.country) return `Je suis à ${p.city}, en ${p.country} Al hamdoulillah. Et vous, dans quelle ville êtes-vous ?`;
-        return "Je suis en Afrique Al hamdoulillah. Et vous, d'où écrivez-vous ?";
-      }
-      if (asksAge) {
-        const age = calcAge(p.birth_date);
-        if (age) return `J'ai ${age} ans Al hamdoulillah. Et vous, si ce n'est pas indiscret ?`;
-        return "Je suis dans la fleur de l'âge Al hamdoulillah. Et vous ?";
-      }
-      if (asksWork) {
-        if (p.profession) return `Je suis ${p.profession}${p.education_level ? ' (' + p.education_level + ')' : ''} Al hamdoulillah. Et vous ?`;
-        return "Je travaille Al hamdoulillah. Et vous, quel est votre parcours professionnel ?";
-      }
-      if (asksKids || asksFamily) {
-        if (p.has_children && p.children_count > 0) return `Oui, j'ai ${p.children_count} enfant${p.children_count > 1 ? 's' : ''} Al hamdoulillah. Et vous ?`;
-        return "Non, je n'ai pas encore d'enfants. Fonder un foyer pieux est mon objectif InshaAllah. Et vous ?";
-      }
-      if (/\b(célibataire|divorcé|veuf|marié|situation|statut)\b/i.test(t)) {
-        const labels = { celibataire: 'célibataire', divorce: 'divorcé(e)', veuf: 'veuf(ve)', marie: 'marié(e)' };
-        if (p.marital_status && labels[p.marital_status]) return `Je suis ${labels[p.marital_status]} Al hamdoulillah. Et vous ?`;
-      }
-      if (isGreeting && count === 0) return `Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?`;
-      if (isGreeting && count > 0) return "Salam 😊 Ravie de vous lire. Comment se passe votre journée ?";
-      if (howAreYou) return "Al hamdoulillah, je vais très bien. Merci de demander 😊 Et vous ?";
-      if (thanks) return "Wa iyyak, qu'Allah vous récompense également 🌸";
-      if (asksAboutMe) {
-        let parts = [];
-        if (p.profession) parts.push(p.profession);
-        if (p.city) parts.push('basé(e) à ' + p.city);
-        const age = calcAge(p.birth_date);
-        if (age) parts.push(age + ' ans');
-        if (parts.length) return `Je suis ${parts.join(', ')} Al hamdoulillah. ${p.bio || 'Je cherche une personne sincère pour avancer vers le mariage InshaAllah.'}`;
-        return "Je suis quelqu'un de simple, pratiquant(e) et sincère dans ma démarche vers le mariage InshaAllah.";
-      }
-      if (asksMarriage) {
-        const replies = [
-          "Oui, je cherche sincèrement à me marier InshaAllah, dans le respect de notre religion. Et vous, quelle est votre démarche ?",
-          "Le mariage est une belle sunna. Je souhaite fonder un foyer pieux InshaAllah.",
-          "Je cherche une personne sérieuse pour avancer dans le halal InshaAllah."
-        ];
-        return replies[count % replies.length];
-      }
-      if (asksReligion) {
-        if (p.religiosity_level) {
-          const labels = { modere: 'modérément pratiquant(e)', pratiquant: 'pratiquant(e)', tres_pratiquant: 'très pratiquant(e)' };
-          return `Je suis ${labels[p.religiosity_level]} Al hamdoulillah. La foi est le pilier de ma vie. Et vous ?`;
-        }
-        return "La foi est le pilier de ma vie Al hamdoulillah.";
-      }
-      if (asksPhoto) return "Je préfère avancer dans la pudeur InshaAllah. Nous ferons connaissance petit à petit, si cela vous convient.";
-      if (asksMeeting) return "InshaAllah après accord des familles. La pudeur et le respect de nos traditions sont essentiels.";
-      if (isCompliment) return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
-      if (isFarewell) return "Qu'Allah vous facilite et vous protège. À bientôt InshaAllah 🌸";
-
-      const defaults = [
-        "Merci pour votre message. Comment se passe votre journée ?",
-        "Je vous remercie. Pourriez-vous m'en dire un peu plus sur vous ?",
-        "D'accord. Et vous, quel est votre parcours ?",
-        "Votre parcours m'intéresse. Quelles sont vos attentes dans le mariage InshaAllah ?",
-        "Excusez-moi, je dois m'absenter. Nous reprendrons cette discussion plus tard InshaAllah."
-      ];
-      return defaults[Math.min(count, defaults.length - 1)];
-    }
-
-    async function triggerAutoReply(userText) {
+    async function triggerAIReply(userText) {
       if (!isSeedProfile) return;
-      const count = getAutoReplyCount();
-      if (count >= MAX_AUTO_REPLIES) return;
 
-      const delay = 2000 + Math.random() * 2000;
+      setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
 
-      setTimeout(() => {
-        setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
-      }, 500);
+      try {
+        const { data, error } = await supabaseClient.functions.invoke('generate-seed-reply', {
+          body: { conversationId, userMessage: userText }
+        });
 
-      setTimeout(async () => {
-        const reply = generateReply(userText, count, otherUserData);
-        try {
-          const { data, error } = await supabaseClient.rpc('reply_as_seed', {
-            p_conversation_id: conversationId,
-            p_reply_text: reply
-          });
-          if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-          if (!data || !data.ok) { setStatus('❌ ' + (data?.error || 'Erreur'), 'err'); return; }
+        if (error) {
+          console.error('Edge Function error:', error);
+          setStatus('❌ IA : ' + (error.message || 'erreur'), 'err');
+          return;
+        }
+        if (!data || !data.ok) {
+          setStatus('❌ ' + (data?.error || 'Erreur IA'), 'err');
+          return;
+        }
 
-          if (data.msg_id) {
-            const { data: newMsg } = await supabaseClient.from('messages').select('*').eq('id', data.msg_id).single();
-            if (newMsg) await renderMessage(newMsg);
-          }
-          incrementAutoReplyCount();
-          setStatus('Prêt', 'info');
-          await refreshQuota();
-          await refreshOtherPresence();
-        } catch(e) { setStatus('❌ ' + e.message, 'err'); }
-      }, delay);
+        // Afficher le message reçu
+        if (data.message) {
+          await renderMessage(data.message);
+        }
+
+        setStatus('Prêt', 'info');
+        await refreshQuota();
+        await refreshOtherPresence();
+      } catch(e) {
+        console.error(e);
+        setStatus('❌ ' + e.message, 'err');
+      }
     }
 
-    // 🎯 DÉCLENCHEMENT DU MESSAGE MIROIR (limite atteinte)
+    // 🎯 MESSAGE MIROIR (limite atteinte)
     async function triggerLimitMessage() {
       if (!isSeedProfile || limitMessageSent) return;
       limitMessageSent = true;
@@ -480,7 +372,6 @@
       const userCount = await countUserMessages();
       const { data: conv } = await supabaseClient.from('conversations')
         .select('is_unlocked').eq('id', conversationId).single();
-
       if (conv) {
         updateQuotaUI({ message_count: userCount, is_unlocked: conv.is_unlocked });
       }
@@ -518,15 +409,12 @@
       if (!r) return;
       setStatus('✅ Envoyé', 'ok');
 
-      // 🎯 Compter UNIQUEMENT les messages de l'utilisateur
       const userCount = await countUserMessages();
 
       if (userCount >= MAX_USER_MESSAGES) {
-        // 5 messages UTILISATEUR atteints → message miroir + blocage
         await triggerLimitMessage();
       } else {
-        // Sinon, réponse normale du seed
-        triggerAutoReply(text);
+        triggerAIReply(text);
       }
     }
 
