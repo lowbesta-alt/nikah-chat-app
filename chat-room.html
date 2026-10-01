@@ -35,11 +35,11 @@
 
   <main id="messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 max-w-3xl w-full mx-auto min-h-0"></main>
 
-  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-3 text-center shrink-0">
-    <p class="text-xs text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 10 messages gratuits.</p>
+  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
+    <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 5 messages gratuits.</p>
     <p class="text-xs text-amber-700 mb-3">Pour continuer cette belle discussion en illimité, débloquez pour 600 FCFA / 1 $.</p>
-    <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-semibold">
-      💳 Demander le déblocage — 600 FCFA
+    <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-sm active:scale-[0.99]">
+      💳 Débloquer maintenant — 600 FCFA
     </button>
   </div>
 
@@ -70,7 +70,7 @@
     let conversationId = null;
     let otherUserId = null;
     let otherUserName = '';
-    let otherUserData = null;    // 🆕 données complètes du seed
+    let otherUserData = null;
     let isSeedProfile = false;
     let channel = null;
     let mediaRecorder = null;
@@ -78,6 +78,9 @@
     let isRecording = false;
     let selectedMsg = null;
     let presenceInterval = null;
+    let limitMessageSent = false;
+
+    const MAX_USER_MESSAGES = 5;   // 🎯 5 messages DE L'UTILISATEUR uniquement
 
     const displayedIds = new Set();
     let deletedForMe = new Set();
@@ -117,6 +120,16 @@
       localStorage.setItem('deleted_msgs_' + currentUser.id, JSON.stringify([...deletedForMe]));
     }
 
+    // 🎯 Compter les messages UTILISATEUR uniquement
+    async function countUserMessages() {
+      const { count } = await supabaseClient
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('sender_id', currentUser.id);
+      return count || 0;
+    }
+
     // ============================================================
     // 🟢 PRÉSENCE EN LIGNE
     // ============================================================
@@ -126,19 +139,15 @@
       const diffMin = (Date.now() - new Date(lastSeenAt).getTime()) / 60000;
       if (diffMin < 5) {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse';
-        dot.title = 'En ligne';
       } else {
         dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0';
-        dot.title = 'Hors ligne';
       }
     }
-
     async function refreshOtherPresence() {
       const { data } = await supabaseClient.from('profiles')
         .select('last_seen_at').eq('id', otherUserId).single();
       if (data) updatePresenceDot(data.last_seen_at);
     }
-
     async function updateMyPresence() {
       if (!currentUser) return;
       await supabaseClient.from('profiles')
@@ -147,7 +156,7 @@
     }
 
     // ============================================================
-    // 🤖 RÉPONSES AUTOMATIQUES INTELLIGENTES (avec vraies données)
+    // 🤖 RÉPONSES AUTOMATIQUES INTELLIGENTES
     // ============================================================
     const MAX_AUTO_REPLIES = 5;
 
@@ -171,8 +180,7 @@
       const t = (userText || '').toLowerCase().trim();
       const p = profile || {};
 
-      // -------- DÉTECTION --------
-      const asksWhere = /(^|\s)(où|ou)(\s|$|\?)|quelle ville|quel pays|tu vis|tu habites|vous habitez|tu es où|vous êtes où|tu es ou|dans quelle ville|dans quel pays|région/i.test(t);
+      const asksWhere = /(^|\s)(où|ou)(\s|$|\?)|quelle ville|quel pays|tu vis|tu habites|vous habitez|tu es où|vous êtes où|dans quelle ville|dans quel pays|région/i.test(t);
       const asksAge = /\b(âge|quel age|quelle age|tu as quel|vous avez quel|ton age|votre age|naissance)\b/i.test(t);
       const asksWork = /\b(travail|travaillez|travaille|profession|métier|job|emploi|carrière|que fais-tu|que faites-vous|études|étudie|université|diplôme|bac)\b/i.test(t);
       const asksFamily = /\b(famille|enfant|parent|père|mère|frère|sœur|fratrie)\b/i.test(t);
@@ -188,79 +196,40 @@
       const isFarewell = /\b(au revoir|à bientôt|bye|bonne nuit)\b/i.test(t);
       const isCompliment = /\b(belle|beau|jolie|sérieux|bien|intéressant|agréable|magnifique)\b/i.test(t);
 
-      // -------- RÉPONSES AVEC VRAIES DONNÉES --------
-
-      // 1) Localisation (avec sa vraie ville)
       if (asksWhere) {
-        if (p.city && p.country) {
-          return `Je suis à ${p.city}, en ${p.country} Al hamdoulillah. Et vous, dans quelle ville êtes-vous ?`;
-        }
+        if (p.city && p.country) return `Je suis à ${p.city}, en ${p.country} Al hamdoulillah. Et vous, dans quelle ville êtes-vous ?`;
         return "Je suis en Afrique Al hamdoulillah. Et vous, d'où écrivez-vous ?";
       }
-
-      // 2) Âge (avec son vrai âge)
       if (asksAge) {
         const age = calcAge(p.birth_date);
         if (age) return `J'ai ${age} ans Al hamdoulillah. Et vous, si ce n'est pas indiscret ?`;
         return "Je suis dans la fleur de l'âge Al hamdoulillah. Et vous ?";
       }
-
-      // 3) Travail (avec sa vraie profession)
       if (asksWork) {
-        if (p.profession) {
-          return `Je suis ${p.profession}${p.education_level ? ' (' + p.education_level + ')' : ''} Al hamdoulillah. Et vous, que faites-vous dans la vie ?`;
-        }
+        if (p.profession) return `Je suis ${p.profession}${p.education_level ? ' (' + p.education_level + ')' : ''} Al hamdoulillah. Et vous ?`;
         return "Je travaille Al hamdoulillah. Et vous, quel est votre parcours professionnel ?";
       }
-
-      // 4) Enfants (avec sa vraie situation)
       if (asksKids || asksFamily) {
-        if (p.has_children && p.children_count > 0) {
-          return `Oui, j'ai ${p.children_count} enfant${p.children_count > 1 ? 's' : ''} Al hamdoulillah. Et vous ?`;
-        }
+        if (p.has_children && p.children_count > 0) return `Oui, j'ai ${p.children_count} enfant${p.children_count > 1 ? 's' : ''} Al hamdoulillah. Et vous ?`;
         return "Non, je n'ai pas encore d'enfants. Fonder un foyer pieux est mon objectif InshaAllah. Et vous ?";
       }
-
-      // 5) Statut marital
       if (/\b(célibataire|divorcé|veuf|marié|situation|statut)\b/i.test(t)) {
         const labels = { celibataire: 'célibataire', divorce: 'divorcé(e)', veuf: 'veuf(ve)', marie: 'marié(e)' };
-        if (p.marital_status && labels[p.marital_status]) {
-          return `Je suis ${labels[p.marital_status]} Al hamdoulillah. Et vous ?`;
-        }
+        if (p.marital_status && labels[p.marital_status]) return `Je suis ${labels[p.marital_status]} Al hamdoulillah. Et vous ?`;
       }
-
-      // 6) Salutation
-      if (isGreeting && count === 0) {
-        return `Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?`;
-      }
-      if (isGreeting && count > 0) {
-        return "Salam 😊 Ravie de vous lire. Comment se passe votre journée ?";
-      }
-
-      // 7) Comment ça va
-      if (howAreYou) {
-        return "Al hamdoulillah, je vais très bien. Merci de demander 😊 Et vous ?";
-      }
-
-      // 8) Remerciement
-      if (thanks) {
-        return "Wa iyyak, qu'Allah vous récompense également 🌸";
-      }
-
-      // 9) Se présenter
+      if (isGreeting && count === 0) return `Wa aleykoum salam wa rahmatoullahi wa barakatouh 👋\nEnchanté(e) de faire votre connaissance. Comment allez-vous ?`;
+      if (isGreeting && count > 0) return "Salam 😊 Ravie de vous lire. Comment se passe votre journée ?";
+      if (howAreYou) return "Al hamdoulillah, je vais très bien. Merci de demander 😊 Et vous ?";
+      if (thanks) return "Wa iyyak, qu'Allah vous récompense également 🌸";
       if (asksAboutMe) {
         let parts = [];
         if (p.profession) parts.push(p.profession);
         if (p.city) parts.push('basé(e) à ' + p.city);
         const age = calcAge(p.birth_date);
         if (age) parts.push(age + ' ans');
-        if (parts.length) {
-          return `Je suis ${parts.join(', ')} Al hamdoulillah. ${p.bio || 'Je cherche une personne sincère pour avancer vers le mariage InshaAllah.'}`;
-        }
+        if (parts.length) return `Je suis ${parts.join(', ')} Al hamdoulillah. ${p.bio || 'Je cherche une personne sincère pour avancer vers le mariage InshaAllah.'}`;
         return "Je suis quelqu'un de simple, pratiquant(e) et sincère dans ma démarche vers le mariage InshaAllah.";
       }
-
-      // 10) Mariage
       if (asksMarriage) {
         const replies = [
           "Oui, je cherche sincèrement à me marier InshaAllah, dans le respect de notre religion. Et vous, quelle est votre démarche ?",
@@ -269,37 +238,18 @@
         ];
         return replies[count % replies.length];
       }
-
-      // 11) Religion
       if (asksReligion) {
         if (p.religiosity_level) {
           const labels = { modere: 'modérément pratiquant(e)', pratiquant: 'pratiquant(e)', tres_pratiquant: 'très pratiquant(e)' };
           return `Je suis ${labels[p.religiosity_level]} Al hamdoulillah. La foi est le pilier de ma vie. Et vous ?`;
         }
-        return "La foi est le pilier de ma vie Al hamdoulillah. Je fais de mon mieux chaque jour.";
+        return "La foi est le pilier de ma vie Al hamdoulillah.";
       }
+      if (asksPhoto) return "Je préfère avancer dans la pudeur InshaAllah. Nous ferons connaissance petit à petit, si cela vous convient.";
+      if (asksMeeting) return "InshaAllah après accord des familles. La pudeur et le respect de nos traditions sont essentiels.";
+      if (isCompliment) return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
+      if (isFarewell) return "Qu'Allah vous facilite et vous protège. À bientôt InshaAllah 🌸";
 
-      // 12) Photo
-      if (asksPhoto) {
-        return "Je préfère avancer dans la pudeur InshaAllah. Nous ferons connaissance petit à petit, si cela vous convient.";
-      }
-
-      // 13) Rencontre
-      if (asksMeeting) {
-        return "InshaAllah après accord des familles. La pudeur et le respect de nos traditions sont essentiels.";
-      }
-
-      // 14) Compliment
-      if (isCompliment) {
-        return "BarakAllahou fik, c'est très gentil 😊 Qu'Allah vous récompense.";
-      }
-
-      // 15) Au revoir
-      if (isFarewell) {
-        return "Qu'Allah vous facilite et vous protège. À bientôt InshaAllah 🌸";
-      }
-
-      // 16) Réponses par défaut progressives
       const defaults = [
         "Merci pour votre message. Comment se passe votre journée ?",
         "Je vous remercie. Pourriez-vous m'en dire un peu plus sur vous ?",
@@ -328,33 +278,48 @@
             p_conversation_id: conversationId,
             p_reply_text: reply
           });
+          if (error) { setStatus('❌ ' + error.message, 'err'); return; }
+          if (!data || !data.ok) { setStatus('❌ ' + (data?.error || 'Erreur'), 'err'); return; }
 
-          if (error) {
-            setStatus('❌ ' + error.message, 'err');
-            return;
-          }
-          if (!data || !data.ok) {
-            setStatus('❌ ' + (data?.error || 'Erreur inconnue'), 'err');
-            return;
-          }
-
-          // Récupérer et afficher le message directement
           if (data.msg_id) {
             const { data: newMsg } = await supabaseClient.from('messages').select('*').eq('id', data.msg_id).single();
             if (newMsg) await renderMessage(newMsg);
           }
-
           incrementAutoReplyCount();
           setStatus('Prêt', 'info');
           await refreshQuota();
-          // 🟢 Le seed vient de répondre → il est maintenant en ligne
           await refreshOtherPresence();
-        } catch(e) {
-          setStatus('❌ ' + e.message, 'err');
-        }
+        } catch(e) { setStatus('❌ ' + e.message, 'err'); }
       }, delay);
     }
-    // ============================================================
+
+    // 🎯 DÉCLENCHEMENT DU MESSAGE MIROIR (limite atteinte)
+    async function triggerLimitMessage() {
+      if (!isSeedProfile || limitMessageSent) return;
+      limitMessageSent = true;
+
+      await new Promise(r => setTimeout(r, 1200));
+      setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
+      await new Promise(r => setTimeout(r, 1800));
+
+      try {
+        const { data, error } = await supabaseClient.rpc('send_seed_limit_message', {
+          p_conversation_id: conversationId
+        });
+        if (error) { setStatus('❌ ' + error.message, 'err'); return; }
+        if (!data || !data.ok) { setStatus('❌ ' + (data?.error || 'Erreur'), 'err'); return; }
+
+        if (data.msg_id) {
+          const { data: newMsg } = await supabaseClient.from('messages').select('*').eq('id', data.msg_id).single();
+          if (newMsg) await renderMessage(newMsg);
+        }
+
+        setStatus('🔒 Conversation bloquée', 'err');
+        document.getElementById('composer').classList.add('hidden');
+        document.getElementById('paywall').classList.remove('hidden');
+        await refreshQuota();
+      } catch(e) { setStatus('❌ ' + e.message, 'err'); }
+    }
 
     async function renderMessage(m, force = false) {
       if (!force && displayedIds.has(m.id)) return;
@@ -421,7 +386,7 @@
       const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
       if (el) el.remove();
       closeMenu();
-      setStatus('🗑️ Supprimé pour tout le monde', 'ok');
+      setStatus('🗑️ Supprimé', 'ok');
       setTimeout(() => setStatus('Prêt', 'info'), 2000);
     }
 
@@ -454,16 +419,13 @@
 
       if (!otherUserId) { setStatus('❌ Utilisateur non précisé', 'err'); return; }
 
-      // 🎯 Charger TOUTES les données du profil autre
-      const { data: other } = await supabaseClient.from('profiles')
-        .select('*').eq('id', otherUserId).single();
+      const { data: other } = await supabaseClient.from('profiles').select('*').eq('id', otherUserId).single();
       if (other) {
         otherUserData = other;
         otherUserName = other.username || 'Utilisateur';
         isSeedProfile = otherUserName.startsWith('seed_');
         document.getElementById('otherName').textContent = otherUserName;
         document.getElementById('otherInfo').textContent = (other.city||'') + (other.country ? ', '+other.country : '');
-        // 🟢 Initialiser le point de présence
         updatePresenceDot(other.last_seen_at);
       }
 
@@ -487,18 +449,14 @@
 
       await markAllAsRead();
       await refreshQuota();
-
-      // 🟢 Mettre à jour ma présence + rafraîchir celle de l'autre
       await updateMyPresence();
       await refreshOtherPresence();
 
-      // 🟢 Rafraîchir régulièrement
       presenceInterval = setInterval(async () => {
         await updateMyPresence();
         await refreshOtherPresence();
       }, 30000);
 
-      // Realtime (tentative)
       try {
         channel = supabaseClient.channel('conv:' + conversationId)
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
@@ -519,20 +477,36 @@
     }
 
     async function refreshQuota() {
+      const userCount = await countUserMessages();
       const { data: conv } = await supabaseClient.from('conversations')
-        .select('message_count, is_unlocked').eq('id', conversationId).single();
-      if (conv) updateQuotaUI(conv);
+        .select('is_unlocked').eq('id', conversationId).single();
+
+      if (conv) {
+        updateQuotaUI({ message_count: userCount, is_unlocked: conv.is_unlocked });
+      }
+      return { message_count: userCount, is_unlocked: conv?.is_unlocked };
     }
 
     function updateQuotaUI(conv) {
-      const locked = !conv.is_unlocked && conv.message_count >= 10;
+      const locked = !conv.is_unlocked && conv.message_count >= MAX_USER_MESSAGES;
       const q = document.getElementById('quota');
-      if (conv.is_unlocked) { q.textContent = 'Illimité ✓'; q.className = 'text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
-      else if (locked) { q.textContent = '10/10'; q.className = 'text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.remove('hidden'); document.getElementById('composer').classList.add('hidden'); }
-      else { const r = 10 - conv.message_count; q.textContent = r + ' msg' + (r>1?'s':''); q.className = 'text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
-        document.getElementById('paywall').classList.add('hidden'); document.getElementById('composer').classList.remove('hidden'); }
+      if (conv.is_unlocked) {
+        q.textContent = 'Illimité ✓';
+        q.className = 'text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap';
+        document.getElementById('paywall').classList.add('hidden');
+        document.getElementById('composer').classList.remove('hidden');
+      } else if (locked) {
+        q.textContent = '5/5';
+        q.className = 'text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap';
+        document.getElementById('paywall').classList.remove('hidden');
+        document.getElementById('composer').classList.add('hidden');
+      } else {
+        const r = MAX_USER_MESSAGES - conv.message_count;
+        q.textContent = r + ' msg' + (r > 1 ? 's' : '');
+        q.className = 'text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap';
+        document.getElementById('paywall').classList.add('hidden');
+        document.getElementById('composer').classList.remove('hidden');
+      }
     }
 
     async function sendMessage() {
@@ -541,8 +515,17 @@
       if (!text) return;
       input.value = '';
       const r = await insertMessage({ content_type: 'text', text_body: text });
-      if (r) {
-        setStatus('✅ Envoyé', 'ok');
+      if (!r) return;
+      setStatus('✅ Envoyé', 'ok');
+
+      // 🎯 Compter UNIQUEMENT les messages de l'utilisateur
+      const userCount = await countUserMessages();
+
+      if (userCount >= MAX_USER_MESSAGES) {
+        // 5 messages UTILISATEUR atteints → message miroir + blocage
+        await triggerLimitMessage();
+      } else {
+        // Sinon, réponse normale du seed
         triggerAutoReply(text);
       }
     }
@@ -573,10 +556,7 @@
     });
 
     document.getElementById('micBtn').addEventListener('click', async () => {
-      if (isRecording) {
-        try { mediaRecorder.stop(); } catch(e) { setStatus('❌ ' + e.message, 'err'); }
-        return;
-      }
+      if (isRecording) { try { mediaRecorder.stop(); } catch(e) {} return; }
       try {
         setStatus('🎤 Micro…', 'info');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -603,7 +583,7 @@
             const { error: upErr } = await supabaseClient.storage.from('chat-media').upload(path, blob, { contentType: actualType });
             if (upErr) throw upErr;
             const r = await insertMessage({ content_type: 'audio', content_url: path });
-            if (r) setStatus('✅ Vocal envoyé (' + Math.round(blob.size/1024) + ' Ko)', 'ok');
+            if (r) setStatus('✅ Vocal envoyé', 'ok');
           } catch (err) { setStatus('❌ ' + err.message, 'err'); }
         };
         mediaRecorder.start();
@@ -630,7 +610,6 @@
 
     document.getElementById('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-    // Nettoyage
     window.addEventListener('beforeunload', () => {
       if (presenceInterval) clearInterval(presenceInterval);
     });
