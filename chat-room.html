@@ -46,13 +46,11 @@
   <footer id="composer" class="bg-white border-t shrink-0 safe-bottom">
     <div class="max-w-3xl mx-auto flex items-center gap-2 p-2">
       <input type="file" id="fileInput" accept="image/*" hidden>
-      <button onclick="document.getElementById('fileInput').click()"
-              class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">📷</button>
+      <button onclick="document.getElementById('fileInput').click()" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">📷</button>
       <button id="micBtn" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">🎤</button>
       <input type="text" id="input" placeholder="Écrivez…"
              class="flex-1 px-3 py-2 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0 text-sm">
-      <button id="sendBtn" onclick="sendMessage()"
-              class="bg-emerald-600 text-white w-10 h-10 rounded-full font-bold text-base shrink-0">➤</button>
+      <button id="sendBtn" onclick="sendMessage()" class="bg-emerald-600 text-white w-10 h-10 rounded-full font-bold text-base shrink-0">➤</button>
     </div>
   </footer>
 
@@ -70,9 +68,7 @@
     let conversationId = null;
     let otherUserId = null;
     let otherUserName = '';
-    let otherUserData = null;
     let isSeedProfile = false;
-    let channel = null;
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
@@ -81,6 +77,7 @@
     let limitMessageSent = false;
 
     const MAX_USER_MESSAGES = 5;
+    const LIMIT_TEXT = "Assalamu 'alaykum ! Le système m'indique que ma limite de messages est atteinte de mon côté. Il faut que je fasse le nécessaire pour débloquer mon espace afin qu'on puisse continuer à faire connaissance.";
 
     const displayedIds = new Set();
     let deletedForMe = new Set();
@@ -112,8 +109,7 @@
 
     function loadDeletedForMe() {
       try {
-        const key = 'deleted_msgs_' + currentUser.id;
-        deletedForMe = new Set(JSON.parse(localStorage.getItem(key) || '[]'));
+        deletedForMe = new Set(JSON.parse(localStorage.getItem('deleted_msgs_' + currentUser.id) || '[]'));
       } catch(e) { deletedForMe = new Set(); }
     }
     function saveDeletedForMe() {
@@ -121,16 +117,11 @@
     }
 
     async function countUserMessages() {
-      const { count } = await supabaseClient
-        .from('messages').select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .eq('sender_id', currentUser.id);
+      const { count } = await supabaseClient.from('messages').select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId).eq('sender_id', currentUser.id);
       return count || 0;
     }
 
-    // ============================================================
-    // 🟢 PRÉSENCE
-    // ============================================================
     function updatePresenceDot(lastSeenAt) {
       const dot = document.getElementById('onlineDot');
       if (!lastSeenAt) { dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0'; return; }
@@ -148,12 +139,8 @@
       await supabaseClient.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', currentUser.id);
     }
 
-    // ============================================================
-    // 🧠 IA : réponse dynamique via Edge Function Gemini
-    // ============================================================
-    async function triggerAIReply(userText) {
-      if (!isSeedProfile) return;
-
+    // 🧠 IA via Edge Function Supabase (clé cachée)
+    async function askAI(userText) {
       setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
 
       try {
@@ -162,16 +149,15 @@
         });
 
         if (error) {
-          console.error('Edge Function error:', error);
-          setStatus('❌ IA : ' + (error.message || 'erreur'), 'err');
-          return;
+          console.error('Erreur Edge Function:', error);
+          setStatus('❌ ' + (error.message || 'Erreur IA'), 'err');
+          return null;
         }
         if (!data || !data.ok) {
           setStatus('❌ ' + (data?.error || 'Erreur IA'), 'err');
-          return;
+          return null;
         }
 
-        // Afficher le message reçu
         if (data.message) {
           await renderMessage(data.message);
         }
@@ -179,38 +165,31 @@
         setStatus('Prêt', 'info');
         await refreshQuota();
         await refreshOtherPresence();
-      } catch(e) {
+        return data.message;
+      } catch (e) {
         console.error(e);
         setStatus('❌ ' + e.message, 'err');
+        return null;
       }
     }
 
-    // 🎯 MESSAGE MIROIR (limite atteinte)
-    async function triggerLimitMessage() {
-      if (!isSeedProfile || limitMessageSent) return;
+    async function sendLimitMessage() {
+      if (limitMessageSent) return;
       limitMessageSent = true;
 
-      await new Promise(r => setTimeout(r, 1200));
       setStatus('💬 ' + otherUserName + ' est en train d\'écrire…', 'typing');
-      await new Promise(r => setTimeout(r, 1800));
+      await new Promise(r => setTimeout(r, 1500));
 
-      try {
-        const { data, error } = await supabaseClient.rpc('send_seed_limit_message', {
-          p_conversation_id: conversationId
-        });
-        if (error) { setStatus('❌ ' + error.message, 'err'); return; }
-        if (!data || !data.ok) { setStatus('❌ ' + (data?.error || 'Erreur'), 'err'); return; }
+      const { data: inserted, error } = await supabaseClient.from('messages')
+        .insert({ conversation_id: conversationId, sender_id: otherUserId, content_type: 'text', text_body: LIMIT_TEXT })
+        .select().single();
 
-        if (data.msg_id) {
-          const { data: newMsg } = await supabaseClient.from('messages').select('*').eq('id', data.msg_id).single();
-          if (newMsg) await renderMessage(newMsg);
-        }
+      if (error) { setStatus('❌ ' + error.message, 'err'); return; }
 
-        setStatus('🔒 Conversation bloquée', 'err');
-        document.getElementById('composer').classList.add('hidden');
-        document.getElementById('paywall').classList.remove('hidden');
-        await refreshQuota();
-      } catch(e) { setStatus('❌ ' + e.message, 'err'); }
+      await renderMessage(inserted);
+      document.getElementById('composer').classList.add('hidden');
+      document.getElementById('paywall').classList.remove('hidden');
+      setStatus('🔒 Conversation bloquée', 'err');
     }
 
     async function renderMessage(m, force = false) {
@@ -226,30 +205,27 @@
 
       let content = '';
       if (m.content_type === 'text') {
-        content = `<p class="whitespace-pre-wrap break-words">${escapeHtml(m.text_body)}</p>`;
+        content = '<p class="whitespace-pre-wrap break-words">' + escapeHtml(m.text_body) + '</p>';
       } else if (m.content_type === 'image') {
         const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
-        content = url ? `<img src="${url}" class="max-w-full rounded-lg">` : `<p class="italic text-xs">[image indisponible]</p>`;
+        content = url ? '<img src="' + url + '" class="max-w-full rounded-lg">' : '<p class="italic text-xs">[image indisponible]</p>';
       } else if (m.content_type === 'audio') {
         const url = m.content_url.startsWith('http') ? m.content_url : await signedUrl(m.content_url);
-        content = url ? `<audio controls src="${url}" class="max-w-full" style="width:220px"></audio>` : `<p class="italic text-xs">[audio indisponible]</p>`;
+        content = url ? '<audio controls src="' + url + '" style="width:220px"></audio>' : '<p class="italic text-xs">[audio indisponible]</p>';
       }
 
-      const menuBtn = `<button onclick="event.stopPropagation(); openMenu('${m.id}', ${mine});"
-                              class="absolute top-1 ${mine ? 'left-1' : 'right-1'} w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center leading-none">⋮</button>`;
+      const menuBtn = '<button onclick="event.stopPropagation(); openMenu(\'' + m.id + '\', ' + mine + ');" class="absolute top-1 ' + (mine ? 'left-1' : 'right-1') + ' w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center leading-none">⋮</button>';
 
-      const html = `
-        <div class="flex ${mine ? 'justify-end' : 'justify-start'}" data-msg-id="${m.id}">
-          <div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm ${mine
-            ? 'bg-emerald-600 text-white rounded-br-md'
-            : 'bg-white text-slate-800 rounded-bl-md shadow-sm'}">
-            ${menuBtn}
-            <div class="pr-5 pl-1">
-              ${content}
-              <p class="text-[10px] mt-1 ${mine ? 'text-emerald-100' : 'text-slate-400'}">${time}</p>
-            </div>
-          </div>
-        </div>`;
+      const html =
+        '<div class="flex ' + (mine ? 'justify-end' : 'justify-start') + '" data-msg-id="' + m.id + '">' +
+          '<div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm ' + (mine ? 'bg-emerald-600 text-white rounded-br-md' : 'bg-white text-slate-800 rounded-bl-md shadow-sm') + '">' +
+            menuBtn +
+            '<div class="pr-5 pl-1">' + content +
+              '<p class="text-[10px] mt-1 ' + (mine ? 'text-emerald-100' : 'text-slate-400') + '">' + time + '</p>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
       document.getElementById('messages').insertAdjacentHTML('beforeend', html);
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
@@ -264,7 +240,7 @@
     function deleteForMe() {
       if (!selectedMsg) return;
       deletedForMe.add(selectedMsg); saveDeletedForMe();
-      const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
+      const el = document.querySelector('[data-msg-id="' + selectedMsg + '"]');
       if (el) el.remove();
       closeMenu();
       setStatus('🗑️ Supprimé pour vous', 'ok');
@@ -275,7 +251,7 @@
       if (!confirm('Supprimer ce message pour TOUT LE MONDE ?')) return;
       const { error } = await supabaseClient.from('messages').delete().eq('id', selectedMsg);
       if (error) { setStatus('❌ ' + error.message, 'err'); closeMenu(); return; }
-      const el = document.querySelector(`[data-msg-id="${selectedMsg}"]`);
+      const el = document.querySelector('[data-msg-id="' + selectedMsg + '"]');
       if (el) el.remove();
       closeMenu();
       setStatus('🗑️ Supprimé', 'ok');
@@ -313,7 +289,6 @@
 
       const { data: other } = await supabaseClient.from('profiles').select('*').eq('id', otherUserId).single();
       if (other) {
-        otherUserData = other;
         otherUserName = other.username || 'Utilisateur';
         isSeedProfile = otherUserName.startsWith('seed_');
         document.getElementById('otherName').textContent = otherUserName;
@@ -321,9 +296,7 @@
         updatePresenceDot(other.last_seen_at);
       }
 
-      const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', {
-        p_other_user: otherUserId
-      });
+      const { data: convId, error: rpcErr } = await supabaseClient.rpc('get_or_create_conversation', { p_other_user: otherUserId });
       if (rpcErr) { setStatus('❌ ' + rpcErr.message, 'err'); return; }
       conversationId = convId;
 
@@ -349,22 +322,6 @@
         await refreshOtherPresence();
       }, 30000);
 
-      try {
-        channel = supabaseClient.channel('conv:' + conversationId)
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
-            filter: 'conversation_id=eq.' + conversationId }, async (payload) => {
-            if (displayedIds.has(payload.new.id)) return;
-            await renderMessage(payload.new);
-            if (payload.new.sender_id !== currentUser.id) {
-              await supabaseClient.from('messages').update({ is_read: true }).eq('id', payload.new.id);
-            }
-            refreshQuota();
-          })
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations',
-            filter: 'id=eq.' + conversationId }, (payload) => updateQuotaUI(payload.new))
-          .subscribe();
-      } catch(e) { console.warn('Realtime indisponible', e); }
-
       setStatus('Prêt', 'info');
     }
 
@@ -372,9 +329,7 @@
       const userCount = await countUserMessages();
       const { data: conv } = await supabaseClient.from('conversations')
         .select('is_unlocked').eq('id', conversationId).single();
-      if (conv) {
-        updateQuotaUI({ message_count: userCount, is_unlocked: conv.is_unlocked });
-      }
+      if (conv) updateQuotaUI({ message_count: userCount, is_unlocked: conv.is_unlocked });
       return { message_count: userCount, is_unlocked: conv?.is_unlocked };
     }
 
@@ -412,9 +367,9 @@
       const userCount = await countUserMessages();
 
       if (userCount >= MAX_USER_MESSAGES) {
-        await triggerLimitMessage();
-      } else {
-        triggerAIReply(text);
+        await sendLimitMessage();
+      } else if (isSeedProfile) {
+        await askAI(text);
       }
     }
 
