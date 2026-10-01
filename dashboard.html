@@ -14,14 +14,10 @@
       <div class="flex items-center gap-2 font-bold text-emerald-700">
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
-      <nav class="flex items-center gap-3">
-        <a href="search.html" class="text-2xl" title="Rechercher">🔍</a>
-        <a href="chat.html" class="relative text-2xl" title="Messages">
-          🔔
-          <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
-        </a>
-        <a href="admin.html" id="adminBtn" class="hidden text-2xl" title="Admin">⚙️</a>
-        <button onclick="logout()" class="text-red-600 text-sm font-medium">Déco</button>
+      <nav class="flex items-center gap-4 text-sm">
+        <a href="search.html" class="text-slate-600 hover:text-emerald-700">Rechercher</a>
+        <a href="chat.html" class="text-slate-600 hover:text-emerald-700">Messages</a>
+        <button onclick="logout()" class="text-red-600 hover:underline">Déconnexion</button>
       </nav>
     </div>
   </header>
@@ -30,10 +26,11 @@
     <h1 class="text-xl font-bold text-slate-800 mb-1">Salam aleykoum 👋</h1>
     <p class="text-sm text-slate-500 mb-6" id="welcome">Chargement…</p>
 
+    <!-- PHOTO PRINCIPALE -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
-      <h2 class="font-bold text-lg mb-4">Ma photo de profil</h2>
+      <h2 class="font-bold text-lg mb-4">Ma photo principale</h2>
       <div class="flex items-center gap-4">
-        <div id="avatarPreview" class="w-24 h-24 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shrink-0">
+        <div id="avatarPreview" class="w-28 h-28 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden shrink-0">
           <span class="text-3xl text-emerald-700 font-bold">?</span>
         </div>
         <div class="flex-1">
@@ -48,8 +45,32 @@
       <div id="avatarMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
     </div>
 
+    <!-- PHOTOS SECONDAIRES -->
+    <div class="bg-white rounded-2xl shadow p-5 mb-4">
+      <h2 class="font-bold text-lg mb-2">Mes 3 photos supplémentaires</h2>
+      <p class="text-xs text-slate-500 mb-4">Aide les autres à mieux te connaître (2 à 3 photos recommandées).</p>
+
+      <div class="grid grid-cols-3 gap-2">
+        <div id="slot-0" class="relative aspect-square rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer" onclick="document.getElementById('extra-0').click()">
+          <span class="text-2xl text-slate-400">+</span>
+          <input type="file" id="extra-0" accept="image/*" class="hidden" onchange="uploadExtra(0, this)">
+        </div>
+        <div id="slot-1" class="relative aspect-square rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer" onclick="document.getElementById('extra-1').click()">
+          <span class="text-2xl text-slate-400">+</span>
+          <input type="file" id="extra-1" accept="image/*" class="hidden" onchange="uploadExtra(1, this)">
+        </div>
+        <div id="slot-2" class="relative aspect-square rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer" onclick="document.getElementById('extra-2').click()">
+          <span class="text-2xl text-slate-400">+</span>
+          <input type="file" id="extra-2" accept="image/*" class="hidden" onchange="uploadExtra(2, this)">
+        </div>
+      </div>
+      <div id="extraMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
+    </div>
+
+    <!-- FORMULAIRE PROFIL -->
     <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 class="font-bold text-lg">Mon profil</h2>
+
       <div>
         <label class="block text-sm font-medium mb-1">Pseudo</label>
         <input type="text" id="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
@@ -149,9 +170,11 @@
   <script>
     const msg = document.getElementById('message');
     const avatarMsg = document.getElementById('avatarMessage');
+    const extraMsg = document.getElementById('extraMessage');
     let currentUser = null;
     let currentGender = 'male';
     let currentAvatarUrl = null;
+    let currentExtraPhotos = [];
 
     function show(t, c) {
       msg.textContent = t;
@@ -162,9 +185,13 @@
     }
     function showAvatar(t, c) {
       avatarMsg.textContent = t;
-      avatarMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok'
-        ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
+      avatarMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
       avatarMsg.classList.remove('hidden');
+    }
+    function showExtra(t, c) {
+      extraMsg.textContent = t;
+      extraMsg.className = 'mt-3 p-2 rounded-lg text-xs text-center ' + (c === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700');
+      extraMsg.classList.remove('hidden');
     }
     function toggleChildren() {
       const v = document.getElementById('has_children').value === 'true';
@@ -175,31 +202,71 @@
       if (url) box.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
       else box.innerHTML = '<span class="text-3xl text-emerald-700 font-bold">' + (username ? username.charAt(0).toUpperCase() : '?') + '</span>';
     }
+    function renderExtraPhotos() {
+      for (let i = 0; i < 3; i++) {
+        const slot = document.getElementById('slot-' + i);
+        const url = currentExtraPhotos[i];
+        if (url) {
+          slot.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">' +
+                           '<button onclick="event.stopPropagation(); removeExtra(' + i + ')" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white text-xs flex items-center justify-center">✕</button>' +
+                           '<input type="file" id="extra-' + i + '" accept="image/*" class="hidden" onchange="uploadExtra(' + i + ', this)">';
+        } else {
+          slot.innerHTML = '<span class="text-2xl text-slate-400">+</span>' +
+                           '<input type="file" id="extra-' + i + '" accept="image/*" class="hidden" onchange="uploadExtra(' + i + ', this)">';
+        }
+      }
+    }
+    async function uploadExtra(index, input) {
+      const file = input.files[0];
+      if (!file) return;
+      if (file.size > 3 * 1024 * 1024) { showExtra('❌ Max 3 Mo', 'err'); return; }
+      showExtra('⏳ Upload…', 'ok');
+      try {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => { img.src = reader.result; };
+        reader.readAsDataURL(file);
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+        const canvas = document.createElement('canvas');
+        const ratio = Math.min(1, 1080 / Math.max(img.width, img.height));
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85));
+        const path = currentUser.id + '/extra-' + index + '-' + Date.now() + '.jpg';
+        const { error: upErr } = await supabaseClient.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+        if (upErr) throw upErr;
+        const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+        const url = pub.publicUrl + '?v=' + Date.now();
+        currentExtraPhotos[index] = url;
+        while (currentExtraPhotos.length > 0 && currentExtraPhotos[currentExtraPhotos.length - 1] == null) {
+          currentExtraPhotos.pop();
+        }
+        const cleanPhotos = currentExtraPhotos.filter(Boolean);
+        await supabaseClient.from('profiles').update({ extra_photos: cleanPhotos }).eq('id', currentUser.id);
+        currentExtraPhotos = cleanPhotos;
+        renderExtraPhotos();
+        showExtra('✅ Photo ' + (index + 1) + ' enregistrée', 'ok');
+      } catch (err) {
+        showExtra('❌ ' + err.message, 'err');
+      } finally { input.value = ''; }
+    }
+    async function removeExtra(index) {
+      if (!confirm('Supprimer cette photo ?')) return;
+      currentExtraPhotos.splice(index, 1);
+      await supabaseClient.from('profiles').update({ extra_photos: currentExtraPhotos }).eq('id', currentUser.id);
+      renderExtraPhotos();
+    }
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
-    }
-    async function loadNotifBadge() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) return;
-      const { data: convs } = await supabaseClient.from('conversations').select('id')
-        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
-      if (!convs || !convs.length) return;
-      const convIds = convs.map(c => c.id);
-      const { count } = await supabaseClient.from('messages')
-        .select('*', { count: 'exact', head: true })
-        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
-      const badge = document.getElementById('notifBadge');
-      if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
-      else badge.classList.add('hidden');
     }
 
     document.getElementById('avatarInput').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      if (file.size > 2 * 1024 * 1024) { showAvatar('❌ Fichier trop lourd (max 2 Mo)', 'err'); return; }
-      if (!file.type.startsWith('image/')) { showAvatar('❌ Format invalide', 'err'); return; }
-      showAvatar('⏳ Upload en cours…', 'ok');
+      if (file.size > 2 * 1024 * 1024) { showAvatar('❌ Max 2 Mo', 'err'); return; }
+      showAvatar('⏳ Upload…', 'ok');
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = currentUser.id + '/avatar.' + ext;
       const { error: upErr } = await supabaseClient.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
@@ -210,22 +277,19 @@
       if (dbErr) { showAvatar('❌ ' + dbErr.message, 'err'); return; }
       currentAvatarUrl = url;
       setAvatarPreview(url, null);
-      showAvatar('✅ Photo mise à jour !', 'ok');
+      showAvatar('✅ Photo mise à jour', 'ok');
     });
 
     (async () => {
       const { data: { user } } = await supabaseClient.auth.getUser();
       if (!user) { window.location.href = 'login.html'; return; }
       currentUser = user;
-      loadNotifBadge();
-      setInterval(loadNotifBadge, 15000);
 
       const { data: p } = await supabaseClient.from('profiles').select('*').eq('id', user.id).single();
       if (p) {
-        // Afficher le bouton admin si admin
-        if (p.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
         currentGender = p.gender || 'male';
         currentAvatarUrl = p.avatar_url;
+        currentExtraPhotos = Array.isArray(p.extra_photos) ? p.extra_photos : [];
         document.getElementById('username').value = p.username || '';
         document.getElementById('birth_date').value = p.birth_date || '';
         document.getElementById('country').value = p.country || '';
@@ -246,6 +310,7 @@
         document.getElementById('welcome').textContent = 'Complète ton profil ci-dessous.';
         setAvatarPreview(null, null);
       }
+      renderExtraPhotos();
     })();
 
     document.getElementById('profileForm').addEventListener('submit', async (e) => {
@@ -257,6 +322,7 @@
         username: document.getElementById('username').value.trim(),
         gender: currentGender,
         avatar_url: currentAvatarUrl,
+        extra_photos: currentExtraPhotos.filter(Boolean),
         birth_date: document.getElementById('birth_date').value || null,
         country: document.getElementById('country').value.trim() || null,
         city: document.getElementById('city').value.trim() || null,
@@ -272,7 +338,7 @@
       };
       const { error } = await supabaseClient.from('profiles').upsert(data, { onConflict: 'id' });
       if (error) show('❌ ' + error.message, 'err');
-      else { show('✅ Profil enregistré !', 'ok'); setTimeout(() => window.location.href = 'search.html', 1200); }
+      else { show('✅ Profil enregistré', 'ok'); setTimeout(() => window.location.href = 'search.html', 1200); }
     });
   </script>
 </body>
