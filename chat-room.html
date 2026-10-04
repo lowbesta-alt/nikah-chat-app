@@ -16,11 +16,6 @@
 </head>
 <body class="bg-slate-100 flex flex-col">
 
-  <script>
-    const GEMINI_API_KEY = null; // clé déplacée côté serveur";
-    const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
-  </script>
-
   <header class="bg-white shadow-sm shrink-0 safe-top">
     <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
       <a href="chat.html" class="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-full whitespace-nowrap active:bg-emerald-700">← Menu</a>
@@ -155,6 +150,7 @@
       await supabaseClient.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", currentUser.id);
     }
 
+    /* ====== IA : appel via Edge Function Supabase (clé cachée côté serveur) ====== */
     async function askAI(userText) {
       setStatus("💬 " + otherUserName + " est en train d'écrire…", "typing");
 
@@ -167,59 +163,45 @@
         if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
       }
 
-      const seedDesc = [
-        "Prénom : " + (p.username || "inconnu"),
-        "Âge : " + (age ? age + " ans" : "non précisé"),
-        "Genre : " + (p.gender === "male" ? "Homme" : "Femme"),
-        "Ville : " + (p.city || "non précisée"),
-        "Pays : " + (p.country || "non précisé"),
-        "Profession : " + (p.profession || "non précisée"),
-        "Pratique : " + (p.religiosity_level || "pratiquant(e)"),
-        "Situation : " + (p.marital_status || "célibataire"),
-        "Bio : " + (p.bio || "Recherche un mariage sincère")
-      ].join("\n");
-
-      const systemPrompt =
-        "Tu es un(e) célibataire musulman(e) sur une plateforme de mariage islamique. " +
-        "Tu discutes avec une personne qui cherche aussi le mariage.\n\n" +
-        "TON profil :\n" + seedDesc + "\n\n" +
-        "RÈGLES :\n- Réponds en 2 ou 3 phrases MAXIMUM\n- Naturel(le), respectueux(se), pudique\n" +
-        "- Reste dans ton personnage\n- Réponds PRÉCISÉMENT à la question\n" +
-        "- Ne parle JAMAIS d'IA ou de bot";
+      const seed = {
+        username: p.username,
+        age: age,
+        gender: p.gender,
+        city: p.city,
+        country: p.country,
+        profession: p.profession,
+        religiosity_level: p.religiosity_level,
+        marital_status: p.marital_status,
+        bio: p.bio
+      };
 
       const { data: history } = await supabaseClient.from("messages")
         .select("sender_id, text_body, content_type")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: false }).limit(8);
 
-      const historyText = (history || []).reverse()
-        .filter(m => m.content_type === "text")
-        .map(m => (m.sender_id === currentUser.id ? "Utilisateur" : "Moi") + " : " + m.text_body)
-        .join("\n");
+      const historyArr = (history || []).reverse()
+        .filter(m => m.content_type === "text" && m.text_body)
+        .map(m => ({
+          role: m.sender_id === currentUser.id ? "user" : "model",
+          text: m.text_body
+        }));
 
       let replyText = null;
-      let lastError = "";
-
-      for (const model of GEMINI_MODELS) {
-        if (replyText) break;
-        try {
-          const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + GEMINI_API_KEY;
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents: [{ role: "user", parts: [{ text: "Historique :\n" + historyText + "\n\nDernier message : " + userText }] }],
-              generationConfig: { temperature: 0.9, maxOutputTokens: 400, topP: 0.95 }
-            })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
-          } else {
-            lastError = model + " → " + res.status;
-          }
-        } catch (e) { lastError = model + " → " + e.message; }
+      try {
+        const { data, error } = await supabaseClient.functions.invoke("generate-seed-reply", {
+          body: { seed, history: historyArr, userMessage: userText }
+        });
+        if (error) {
+          console.error("Edge Function error:", error);
+          setStatus("❌ Erreur IA", "err");
+          return null;
+        }
+        replyText = data?.reply?.trim() || null;
+      } catch (e) {
+        console.error("askAI error:", e);
+        setStatus("❌ Erreur IA", "err");
+        return null;
       }
 
       if (!replyText) { setStatus("❌ Erreur IA", "err"); return null; }
