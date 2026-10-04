@@ -1,8 +1,9 @@
 {
-  "name": "InshaAllah — Mariage islamique",
-  "short_name": "InshaAllah",
+  "name": "Nikah — Mariage islamique",
+  "short_name": "Nikah",
   "description": "Plateforme éthique de mariage islamique",
   "start_url": "/login.html",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#065F46",
@@ -10,16 +11,16 @@
   "lang": "fr",
   "icons": [
     {
-      "src": "logo-nikah.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "logo-nikah.png",
+      "src": "android-chrome-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
