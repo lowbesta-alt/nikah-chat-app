@@ -150,7 +150,6 @@
       await supabaseClient.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", currentUser.id);
     }
 
-    /* ====== IA : appel via Edge Function Supabase (clé cachée côté serveur) ====== */
     async function askAI(userText) {
       setStatus("💬 " + otherUserName + " est en train d'écrire…", "typing");
 
