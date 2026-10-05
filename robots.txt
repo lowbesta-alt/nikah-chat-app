@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /chat.html
+Disallow: /chat-room.html
+Disallow: /dashboard.html
+Disallow: /paiement.html
+Disallow: /profile-view.html
+Disallow: /reset-password.html
+Disallow: /auth-confirm.html
+
+Sitemap: https://broken-rain-dccc.nkongjl70.workers.dev/sitemap.xml
