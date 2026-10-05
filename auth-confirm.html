@@ -12,26 +12,51 @@
 <script>
 (async () => {
   const statusEl = document.getElementById('status');
+
+  // Cas 1 : le lien contient un token_hash (query string)
   const urlParams = new URLSearchParams(window.location.search);
   const tokenHash = urlParams.get('token_hash');
-  const type = urlParams.get('type');
+  const typeQuery = urlParams.get('type');
 
-  if (!tokenHash || !type) {
-    statusEl.textContent = 'Lien invalide.';
+  if (tokenHash && typeQuery) {
+    const { error } = await supabaseClient.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: typeQuery
+    });
+    if (error) {
+      statusEl.textContent = '❌ Lien expiré ou invalide. Veuillez recommencer.';
+      return;
+    }
+    window.location.href = typeQuery === 'recovery' ? 'reset-password.html' : 'dashboard.html';
     return;
   }
 
-  const { error } = await supabaseClient.auth.verifyOtp({
-    token_hash: tokenHash,
-    type: type
-  });
-
-  if (error) {
-    statusEl.textContent = '❌ Lien expiré ou invalide. Veuillez recommencer.';
+  // Cas 2 : le lien contient un access_token dans le hash (#access_token=...)
+  const hash = window.location.hash || '';
+  if (hash.includes('access_token')) {
+    // Laisser Supabase lire le hash automatiquement
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error || !data.session) {
+      statusEl.textContent = '❌ Session invalide. Veuillez recommencer.';
+      return;
+    }
+    // Détecter le type dans le hash
+    const params = new URLSearchParams(hash.replace('#', ''));
+    const typeHash = params.get('type');
+    if (typeHash === 'recovery') {
+      window.location.href = 'reset-password.html';
+    } else if (typeHash === 'signup') {
+      window.location.href = 'dashboard.html';
+    } else if (typeHash === 'magiclink') {
+      window.location.href = 'chat.html';
+    } else {
+      window.location.href = 'dashboard.html';
+    }
     return;
   }
 
-  window.location.href = 'reset-password.html';
+  // Rien à faire → accueil
+  window.location.href = 'index.html';
 })();
 </script>
 </body>
