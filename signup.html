@@ -86,7 +86,7 @@
   <script>
     const msg = document.getElementById('message');
     function showMessage(t, c) {
-      msg.textContent = t;
+      msg.innerHTML = t;
       msg.className = 'mt-4 p-3 rounded-lg text-sm whitespace-pre-line ' + (c === 'ok'
         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         : 'bg-red-50 text-red-700 border border-red-200');
@@ -103,12 +103,14 @@
       e.preventDefault();
       const btn = document.getElementById('btnSubmit');
       btn.disabled = true; btn.textContent = 'Création…';
+      msg.classList.add('hidden');
 
       const username = document.getElementById('username').value.trim();
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const gender = document.getElementById('gender').value;
 
+      // 1. Créer le compte
       const { data, error } = await supabaseClient.auth.signUp({
         email, password, options: { data: { username, gender } }
       });
@@ -119,14 +121,36 @@
         return;
       }
 
-      if (data.user) {
-        await supabaseClient.from('profiles').insert({
-          id: data.user.id, username, gender
-        });
+      // CAS SPÉCIAL : email déjà inscrit (Supabase ne renvoie pas d'erreur mais identities vide)
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        showMessage('⚠️ Cet email est déjà utilisé.<br><br>👉 <a href="login.html" class="text-emerald-700 underline font-bold">Se connecter</a><br>👉 <a href="reset-password.html" class="text-emerald-700 underline font-bold">Mot de passe oublié ?</a>', 'err');
+        btn.disabled = false; btn.textContent = 'Créer mon compte';
+        return;
       }
 
-      showMessage('✅ Compte créé ! Redirection vers ton profil…', 'ok');
-      setTimeout(() => window.location.href = 'dashboard.html', 1500);
+      if (!data.user) {
+        showMessage('❌ Erreur inattendue. Réessayez.', 'err');
+        btn.disabled = false; btn.textContent = 'Créer mon compte';
+        return;
+      }
+
+      // 2. Créer le profil (seulement si on a une session active)
+      const { data: sessData } = await supabaseClient.auth.getSession();
+      if (sessData && sessData.session) {
+        const { error: profErr } = await supabaseClient.from('profiles').insert({
+          id: data.user.id, username, gender
+        });
+        // Si le profil existe déjà, on ignore silencieusement
+        if (profErr && !profErr.message.includes('duplicate')) {
+          showMessage('❌ Profil : ' + profErr.message, 'err');
+          btn.disabled = false; btn.textContent = 'Créer mon compte';
+          return;
+        }
+      }
+
+      // 3. Redirection
+      showMessage('✅ Compte créé ! Redirection…', 'ok');
+      setTimeout(() => window.location.href = 'dashboard.html', 1000);
     });
   </script>
 </body>
