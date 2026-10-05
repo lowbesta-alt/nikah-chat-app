@@ -16,6 +16,7 @@
       </a>
       <nav class="flex items-center gap-3">
         <a href="search.html" class="text-2xl" title="Rechercher">🔍</a>
+        <a href="dashboard.html" class="text-2xl" title="Mon profil">👤</a>
         <a href="chat.html" class="relative text-2xl" title="Notifications">
           🔔
           <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center font-bold px-1">0</span>
@@ -73,7 +74,6 @@
       loadNotifBadge();
       setInterval(loadNotifBadge, 15000);
 
-      // Vérifier si admin
       const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', user.id).single();
       if (profile?.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
 
