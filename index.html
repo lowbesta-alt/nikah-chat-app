@@ -3,6 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    // Filet de sécurité : si le lien de récupération atterrit sur l'accueil,
+    // on envoie l'utilisateur vers reset-password.html en gardant les paramètres.
+    (function () {
+      var h = window.location.hash || "";
+      var s = window.location.search || "";
+      var isRecovery = h.indexOf("type=recovery") !== -1 || s.indexOf("type=recovery") !== -1;
+      var isAuthError = h.indexOf("error_code=") !== -1 || h.indexOf("error_description=") !== -1;
+      if (isRecovery || isAuthError) {
+        window.location.replace("reset-password.html" + s + h);
+      }
+    })();
+  </script>
   <title>InshaAllah — Plateforme de mariage islamique</title>
   <link rel="icon" type="image/png" href="logo-nikah.png">
   <link rel="apple-touch-icon" href="logo-nikah.png">
