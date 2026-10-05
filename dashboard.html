@@ -165,6 +165,19 @@
     </form>
 
     <div id="message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+
+    <!-- ZONE DANGER : suppression de compte -->
+    <div class="bg-white rounded-2xl shadow p-5 mt-6 border border-red-200">
+      <h2 class="font-bold text-lg text-red-700 mb-2">Zone sensible</h2>
+      <p class="text-xs text-slate-500 mb-4">
+        Supprimer votre compte effacera définitivement votre profil, vos photos, vos messages et vos conversations.
+        Cette action est irréversible.
+      </p>
+      <button type="button" onclick="deleteAccount()"
+              class="w-full bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 font-semibold py-3 rounded-xl text-sm">
+        🗑️ Supprimer mon compte
+      </button>
+    </div>
   </main>
 
   <script>
@@ -260,6 +273,55 @@
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
+    }
+
+    // ============ SUPPRESSION DE COMPTE ============
+    async function deleteAccount() {
+      // Étape 1 : première confirmation
+      const ok1 = confirm("⚠️ ATTENTION\n\nVous allez supprimer DÉFINITIVEMENT votre compte.\n\nCela effacera :\n- Votre profil\n- Vos photos\n- Vos messages\n- Vos conversations\n\nCette action est IRRÉVERSIBLE.\n\nContinuer ?");
+      if (!ok1) return;
+
+      // Étape 2 : confirmation par écrit
+      const saisie = prompt("Pour confirmer, tapez SUPPRIMER en majuscules :");
+      if (saisie !== "SUPPRIMER") {
+        alert("Annulé. Vous devez taper SUPPRIMER exactement.");
+        return;
+      }
+
+      try {
+        // 1. Supprimer les photos du storage
+        const { data: profile } = await supabaseClient.from('profiles').select('avatar_url, extra_photos').eq('id', currentUser.id).single();
+        if (profile) {
+          const pathsToDelete = [];
+          if (profile.avatar_url) {
+            const m = profile.avatar_url.match(/avatars\/([^?]+)/);
+            if (m) pathsToDelete.push(m[1]);
+          }
+          if (Array.isArray(profile.extra_photos)) {
+            profile.extra_photos.forEach(u => {
+              const m = u.match(/avatars\/([^?]+)/);
+              if (m) pathsToDelete.push(m[1]);
+            });
+          }
+          if (pathsToDelete.length) {
+            await supabaseClient.storage.from('avatars').remove(pathsToDelete);
+          }
+        }
+
+        // 2. Appeler la fonction SQL qui supprime tout le reste
+        const { error: rpcErr } = await supabaseClient.rpc('delete_my_account');
+        if (rpcErr) {
+          alert("❌ Erreur : " + rpcErr.message + "\n\nContactez l'administrateur.");
+          return;
+        }
+
+        // 3. Déconnexion
+        await supabaseClient.auth.signOut();
+        alert("✅ Votre compte a été supprimé.\n\nNous sommes désolés de vous voir partir. Qu'Allah vous facilite.");
+        window.location.href = 'index.html';
+      } catch (err) {
+        alert("❌ Erreur inattendue : " + err.message);
+      }
     }
 
     document.getElementById('avatarInput').addEventListener('change', async (e) => {
