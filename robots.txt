@@ -9,4 +9,4 @@ Disallow: /profile-view.html
 Disallow: /reset-password.html
 Disallow: /auth-confirm.html
 
-Sitemap: https://broken-rain-dccc.nkongjl70.workers.dev/sitemap.xml
+Sitemap: https://nikah.sky-global.us/sitemap.xml
