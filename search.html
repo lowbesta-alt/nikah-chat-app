@@ -155,8 +155,8 @@
           ? '<img src="' + p.avatar_url + '" class="w-full h-full object-cover">'
           : '<div class="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-700 font-bold text-4xl">' + initials + '</div>';
 
-        // 🟢 Seeds toujours en ligne
-        const isOnline = p.is_seed === true || (p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5));
+        // Point vert uniquement pour les vrais utilisateurs actifs
+        const isOnline = (p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5));
 
         return `
           <a href="profile-view.html?id=${p.id}" class="block bg-white rounded-2xl shadow overflow-hidden hover:shadow-lg transition">
