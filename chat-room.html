@@ -1,527 +1,232 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Conversation — Nikah</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <style>
-    html, body { height: 100%; overscroll-behavior: none; }
-    body { height: 100dvh; }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
-    .safe-top { padding-top: env(safe-area-inset-top, 0); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conversation — Nikah</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  html, body { height: 100%; overscroll-behavior: none; }
+  body { height: 100dvh; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .safe-top { padding-top: env(safe-area-inset-top, 0); }
+</style>
 </head>
 <body class="bg-slate-100 flex flex-col">
 
-  <header class="bg-white shadow-sm shrink-0 safe-top">
-    <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
-      <a href="chat.html" class="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-full whitespace-nowrap active:bg-emerald-700">← Menu</a>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
-          <span id="onlineDot" class="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0"></span>
-          <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
-        </div>
-        <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
+<header class="bg-white shadow-sm shrink-0 safe-top">
+  <div class="max-w-3xl mx-auto flex items-center gap-3 px-3 py-2">
+    <a href="chat.html" class="bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 rounded-full whitespace-nowrap">← Menu</a>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2">
+        <span id="onlineDot" class="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0"></span>
+        <p class="font-semibold text-slate-800 truncate text-sm" id="otherName">Chargement…</p>
       </div>
-      <button onclick="reportUser()" class="text-red-500 text-lg px-1">🚩</button>
-      <span id="quota" class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
+      <p class="text-xs text-slate-500 truncate" id="otherInfo"></p>
     </div>
-  </header>
-
-  <div id="statusBar" class="text-[11px] text-center py-1 px-3 shrink-0 bg-slate-200 text-slate-600">Prêt</div>
-
-  <main id="messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 max-w-3xl w-full mx-auto min-h-0"></main>
-
-  <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
-    <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 5 messages gratuits.</p>
-    <p class="text-xs text-amber-700 mb-3">Pour continuer cette belle discussion en illimité, débloquez pour 600 FCFA / 1 $.</p>
-    <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-sm active:scale-[0.99]">
-      💳 Débloquer maintenant — 600 FCFA
-    </button>
+    <button onclick="reportUser()" class="text-red-500 text-lg px-1">🚩</button>
+    <span id="quota" class="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap"></span>
   </div>
+</header>
 
-  <div id="lockedByOther" class="hidden bg-blue-50 border-t border-blue-200 p-4 text-center shrink-0">
-    <p class="text-sm text-blue-800 font-medium">⏸️ Votre interlocuteur a atteint sa limite de messages gratuits.</p>
-    <p class="text-xs text-blue-600 mt-1">Vous pourrez reprendre la discussion dès qu'il/elle aura débloqué son espace.</p>
+<div id="statusBar" class="text-[11px] text-center py-1 px-3 shrink-0 bg-slate-200 text-slate-600">Prêt</div>
+
+<main id="messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 max-w-3xl w-full mx-auto min-h-0"></main>
+
+<div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
+  <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 5 messages gratuits.</p>
+  <p class="text-xs text-amber-700 mb-3">Pour continuer en illimité, débloquez pour 600 FCFA / 1 $.</p>
+  <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold">💳 Débloquer maintenant — 600 FCFA</button>
+</div>
+
+<div id="lockedByOther" class="hidden bg-blue-50 border-t border-blue-200 p-4 text-center shrink-0">
+  <p class="text-sm text-blue-800 font-medium">⏸️ Votre interlocuteur a atteint sa limite.</p>
+</div>
+
+<footer id="composer" class="bg-white border-t shrink-0 safe-bottom">
+  <div class="max-w-3xl mx-auto flex items-center gap-2 p-2">
+    <input type="file" id="fileInput" accept="image/*" hidden>
+    <button onclick="document.getElementById('fileInput').click()" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">📷</button>
+    <button id="micBtn" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">🎤</button>
+    <input type="text" id="input" placeholder="Écrivez…" class="flex-1 px-3 py-2 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0 text-sm">
+    <button onclick="sendMessage()" class="bg-emerald-600 text-white w-10 h-10 rounded-full font-bold text-base shrink-0">➤</button>
   </div>
+</footer>
 
-  <footer id="composer" class="bg-white border-t shrink-0 safe-bottom">
-    <div class="max-w-3xl mx-auto flex items-center gap-2 p-2">
-      <input type="file" id="fileInput" accept="image/*" hidden>
-      <button onclick="document.getElementById('fileInput').click()" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">📷</button>
-      <button id="micBtn" class="w-10 h-10 rounded-full bg-slate-100 text-base shrink-0">🎤</button>
-      <input type="text" id="input" placeholder="Écrivez…"
-             class="flex-1 px-3 py-2 border border-slate-300 rounded-full outline-none focus:border-emerald-500 min-w-0 text-sm">
-      <button id="sendBtn" onclick="sendMessage()" class="bg-emerald-600 text-white w-10 h-10 rounded-full font-bold text-base shrink-0">➤</button>
-    </div>
-  </footer>
-
-  <div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end">
-    <div class="w-full bg-white rounded-t-2xl p-4 safe-bottom">
-      <p class="text-sm text-slate-600 text-center mb-3 font-medium">Que faire de ce message ?</p>
-      <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium active:bg-slate-200">🗑️ Supprimer pour moi</button>
-      <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium active:bg-red-100">🗑️ Supprimer pour tout le monde</button>
-      <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm active:bg-slate-100">Annuler</button>
-    </div>
+<div id="msgMenu" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end">
+  <div class="w-full bg-white rounded-t-2xl p-4 safe-bottom">
+    <p class="text-sm text-slate-600 text-center mb-3 font-medium">Que faire de ce message ?</p>
+    <button onclick="deleteForMe()" class="w-full text-left px-4 py-3 rounded-xl bg-slate-100 mb-2 text-sm font-medium">🗑️ Supprimer pour moi</button>
+    <button id="deleteAllBtn" onclick="deleteForEveryone()" class="hidden w-full text-left px-4 py-3 rounded-xl bg-red-50 text-red-700 mb-2 text-sm font-medium">🗑️ Supprimer pour tout le monde</button>
+    <button onclick="closeMenu()" class="w-full text-center px-4 py-3 rounded-xl text-slate-600 text-sm">Annuler</button>
   </div>
+</div>
 
-  <script>
-    let currentUser = null;
-    let conversationId = null;
-    let otherUserId = null;
-    let otherUserName = "";
-    let otherUserData = null;
-    let isSeedProfile = false;
-    let iHaveUnlocked = false;
-    let otherHasUnlocked = false;
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let isRecording = false;
-    let selectedMsg = null;
-    let presenceInterval = null;
-    let limitMessageSent = false;
-    let channel = null;
+<script>
+let currentUser=null,conversationId=null,otherUserId=null,otherUserName="",otherUserData=null;
+let isSeedProfile=false,iHaveUnlocked=false,otherHasUnlocked=false;
+let mediaRecorder=null,audioChunks=[],isRecording=false,selectedMsg=null,presenceInterval=null,limitMessageSent=false,channel=null;
+const MAX_USER_MESSAGES=5;
+const displayedIds=new Set();
+let deletedForMe=new Set();
+const params=new URLSearchParams(window.location.search);
+otherUserId=params.get("user");
 
-    const MAX_USER_MESSAGES = 5;
+function setStatus(t,ty){const b=document.getElementById("statusBar");b.textContent=t;b.className="text-[11px] text-center py-1 px-3 shrink-0 "+(ty==="ok"?"bg-emerald-100 text-emerald-800":ty==="err"?"bg-red-100 text-red-800":ty==="rec"?"bg-red-500 text-white font-bold":ty==="typing"?"bg-blue-100 text-blue-800":"bg-slate-200 text-slate-600");}
+function escapeHtml(s){return (s||"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function signedUrl(p){const{data,error}=await supabaseClient.storage.from("chat-media").createSignedUrl(p,3600);if(error)return null;return data.signedUrl;}
+function loadDeletedForMe(){try{deletedForMe=new Set(JSON.parse(localStorage.getItem("d_"+currentUser.id)||"[]"));}catch(e){deletedForMe=new Set();}}
+function saveDeletedForMe(){localStorage.setItem("d_"+currentUser.id,JSON.stringify([...deletedForMe]));}
+async function countUserMessages(){const{count}=await supabaseClient.from("messages").select("*",{count:"exact",head:true}).eq("conversation_id",conversationId).eq("sender_id",currentUser.id);return count||0;}
+async function countOtherMessages(){const{count}=await supabaseClient.from("messages").select("*",{count:"exact",head:true}).eq("conversation_id",conversationId).eq("sender_id",otherUserId);return count||0;}
+function updatePresenceDot(ls,is){const d=document.getElementById("onlineDot");const on=is||(ls&&((Date.now()-new Date(ls).getTime())/60000<5));d.className="w-2.5 h-2.5 rounded-full shrink-0 "+(on?"bg-emerald-500 animate-pulse":"bg-gray-400");}
+async function refreshOtherPresence(){const{data}=await supabaseClient.from("profiles").select("last_seen_at,is_seed").eq("id",otherUserId).single();if(data)updatePresenceDot(data.last_seen_at,data.is_seed);}
+async function updateMyPresence(){if(!currentUser)return;await supabaseClient.from("profiles").update({last_seen_at:new Date().toISOString()}).eq("id",currentUser.id);}
 
-    const displayedIds = new Set();
-    let deletedForMe = new Set();
+async function sendMirrorMessage(){if(limitMessageSent)return;limitMessageSent=true;const{data,error}=await supabaseClient.rpc("send_limit_message",{p_conversation_id:conversationId});if(error)return;if(data&&data.ok&&data.msg_id){const{data:msg}=await supabaseClient.from("messages").select("*").eq("id",data.msg_id).single();if(msg)await renderMessage(msg);}}
 
-    const params = new URLSearchParams(window.location.search);
-    otherUserId = params.get("user");
+async function refreshQuota(){
+  const uc=await countUserMessages(),oc=await countOtherMessages();
+  const{data:mu}=await supabaseClient.rpc("has_unlocked",{p_conversation_id:conversationId});
+  iHaveUnlocked=mu===true;
+  const{data:ul}=await supabaseClient.from("conversation_unlocks").select("user_id").eq("conversation_id",conversationId);
+  otherHasUnlocked=(ul||[]).some(u=>u.user_id===otherUserId);
+  const q=document.getElementById("quota"),pw=document.getElementById("paywall"),lo=document.getElementById("lockedByOther"),co=document.getElementById("composer");
+  const iL=!iHaveUnlocked&&uc>=MAX_USER_MESSAGES,oL=!otherHasUnlocked&&oc>=MAX_USER_MESSAGES;
+  pw.classList.add("hidden");lo.classList.add("hidden");co.classList.remove("hidden");
+  if(iL){q.textContent="5/5";q.className="text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700";pw.classList.remove("hidden");co.classList.add("hidden");}
+  else if(oL){q.textContent="En attente";q.className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700";lo.classList.remove("hidden");co.classList.add("hidden");}
+  else if(iHaveUnlocked){q.textContent="Illimité ✓";q.className="text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700";}
+  else{const r=MAX_USER_MESSAGES-uc;q.textContent=r+" msg";q.className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700";}
+}
 
-    function setStatus(text, type) {
-      const bar = document.getElementById("statusBar");
-      bar.textContent = text;
-      bar.className = "text-[11px] text-center py-1 px-3 shrink-0 " + (
-        type === "ok" ? "bg-emerald-100 text-emerald-800"
-        : type === "err" ? "bg-red-100 text-red-800"
-        : type === "rec" ? "bg-red-500 text-white font-bold"
-        : type === "typing" ? "bg-blue-100 text-blue-800"
-        : "bg-slate-200 text-slate-600"
-      );
-    }
+async function renderMessage(m,force=false){
+  if(!force&&displayedIds.has(m.id))return;
+  if(deletedForMe.has(m.id))return;
+  displayedIds.add(m.id);
+  const em=document.getElementById("emptyMsg");if(em)em.remove();
+  const mine=m.sender_id===currentUser.id;
+  const time=new Date(m.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  let c="";
+  if(m.content_type==="text"){c='<p class="whitespace-pre-wrap break-words">'+escapeHtml(m.text_body)+'</p>';}
+  else if(m.content_type==="image"){const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);c=u?'<img src="'+u+'" class="max-w-full rounded-lg">':'<p class="italic text-xs">[image]</p>';}
+  else if(m.content_type==="audio"){const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);c=u?'<audio controls src="'+u+'" style="width:220px"></audio>':'<p class="italic text-xs">[audio]</p>';}
+  const mb='<button onclick="event.stopPropagation();openMenu(\''+m.id+'\','+mine+');" class="absolute top-1 '+(mine?"left-1":"right-1")+' w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center">⋮</button>';
+  const html='<div class="flex '+(mine?"justify-end":"justify-start")+'" data-msg-id="'+m.id+'"><div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm '+(mine?"bg-emerald-600 text-white rounded-br-md":"bg-white text-slate-800 rounded-bl-md shadow-sm")+'">'+mb+'<div class="pr-5 pl-1">'+c+'<p class="text-[10px] mt-1 '+(mine?"text-emerald-100":"text-slate-400")+'">'+time+'</p></div></div></div>';
+  document.getElementById("messages").insertAdjacentHTML("beforeend",html);
+  document.getElementById("messages").scrollTop=document.getElementById("messages").scrollHeight;
+}
 
-    function escapeHtml(s) {
-      return (s || "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
+function openMenu(id,mine){selectedMsg=id;document.getElementById("msgMenu").classList.remove("hidden");const b=document.getElementById("deleteAllBtn");if(mine)b.classList.remove("hidden");else b.classList.add("hidden");}
+function closeMenu(){document.getElementById("msgMenu").classList.add("hidden");selectedMsg=null;}
+function deleteForMe(){if(!selectedMsg)return;deletedForMe.add(selectedMsg);saveDeletedForMe();const el=document.querySelector('[data-msg-id="'+selectedMsg+'"]');if(el)el.remove();closeMenu();setStatus("🗑️ Supprimé","ok");setTimeout(()=>setStatus("Prêt","info"),2000);}
+async function deleteForEveryone(){if(!selectedMsg)return;if(!confirm("Supprimer pour TOUT LE MONDE ?"))return;const{error}=await supabaseClient.from("messages").delete().eq("id",selectedMsg);if(error){setStatus("❌ "+error.message,"err");closeMenu();return;}const el=document.querySelector('[data-msg-id="'+selectedMsg+'"]');if(el)el.remove();closeMenu();setStatus("🗑️ Supprimé","ok");setTimeout(()=>setStatus("Prêt","info"),2000);}
 
-    async function signedUrl(path) {
-      const { data, error } = await supabaseClient.storage.from("chat-media").createSignedUrl(path, 3600);
-      if (error) { console.error(error); return null; }
-      return data.signedUrl;
-    }
+async function markAllAsRead(){await supabaseClient.from("messages").update({is_read:true}).eq("conversation_id",conversationId).neq("sender_id",currentUser.id).eq("is_read",false);}
+async function insertMessage(payload){const{data,error}=await supabaseClient.from("messages").insert({conversation_id:conversationId,sender_id:currentUser.id,...payload}).select().single();if(error){setStatus("❌ "+error.message,"err");return null;}await renderMessage(data);return data;}
 
-    function loadDeletedForMe() {
-      try {
-        deletedForMe = new Set(JSON.parse(localStorage.getItem("deleted_msgs_" + currentUser.id) || "[]"));
-      } catch(e) { deletedForMe = new Set(); }
-    }
-    function saveDeletedForMe() {
-      localStorage.setItem("deleted_msgs_" + currentUser.id, JSON.stringify([...deletedForMe]));
-    }
+async function init(){
+  const{data:{user}}=await supabaseClient.auth.getUser();
+  if(!user){window.location.href="login.html";return;}
+  currentUser=user;
+  loadDeletedForMe();
+  if(!otherUserId){setStatus("❌ Utilisateur non précisé","err");return;}
+  const{data:other}=await supabaseClient.from("profiles").select("*").eq("id",otherUserId).single();
+  if(other){otherUserData=other;otherUserName=other.username||"Utilisateur";isSeedProfile=false;document.getElementById("otherName").textContent=otherUserName;document.getElementById("otherInfo").textContent=(other.city||"")+(other.country?", "+other.country:"");updatePresenceDot(other.last_seen_at,other.is_seed);}
+  const{data:convId,error:rpcErr}=await supabaseClient.rpc("get_or_create_conversation",{p_other_user:otherUserId});
+  if(rpcErr){setStatus("❌ "+rpcErr.message,"err");return;}
+  conversationId=convId;
+  const{data:msgs}=await supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true}).limit(200);
+  document.getElementById("messages").innerHTML="";
+  if(!msgs||!msgs.length){document.getElementById("messages").innerHTML='<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';}
+  else{for(const m of msgs)await renderMessage(m);}
+  await markAllAsRead();
+  await refreshQuota();
+  await updateMyPresence();
+  await refreshOtherPresence();
+  presenceInterval=setInterval(async()=>{await updateMyPresence();await refreshOtherPresence();await refreshQuota();},15000);
+  try{channel=supabaseClient.channel("conv:"+conversationId).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+conversationId},async(payload)=>{if(displayedIds.has(payload.new.id))return;await renderMessage(payload.new);if(payload.new.sender_id!==currentUser.id){await supabaseClient.from("messages").update({is_read:true}).eq("id",payload.new.id);}refreshQuota();}).subscribe();}catch(e){}
+  setStatus("Prêt","info");
+}
 
-    async function countUserMessages() {
-      const { count } = await supabaseClient.from("messages").select("*", { count: "exact", head: true })
-        .eq("conversation_id", conversationId).eq("sender_id", currentUser.id);
-      return count || 0;
-    }
+async function sendMessage(){
+  const input=document.getElementById("input");
+  const text=input.value.trim();
+  if(!text)return;
+  input.value="";
+  const r=await insertMessage({content_type:"text",text_body:text});
+  if(!r)return;
+  setStatus("✅ Envoyé","ok");
+  const uc=await countUserMessages();
+  if(uc>=MAX_USER_MESSAGES&&!iHaveUnlocked){if(!limitMessageSent)await sendMirrorMessage();await refreshQuota();}
+  setTimeout(()=>setStatus("Prêt","info"),1500);
+}
 
-    async function countOtherMessages() {
-      const { count } = await supabaseClient.from("messages").select("*", { count: "exact", head: true })
-        .eq("conversation_id", conversationId).eq("sender_id", otherUserId);
-      return count || 0;
-    }
+document.getElementById("fileInput").addEventListener("change",async(e)=>{
+  const file=e.target.files[0];if(!file)return;
+  setStatus("⏳ Photo…","info");
+  try{
+    const img=new Image();const reader=new FileReader();
+    reader.onload=()=>{img.src=reader.result;};reader.readAsDataURL(file);
+    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;});
+    const canvas=document.createElement("canvas");
+    const ratio=Math.min(1,1280/Math.max(img.width,img.height));
+    canvas.width=img.width*ratio;canvas.height=img.height*ratio;
+    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",0.82));
+    const path=conversationId+"/"+currentUser.id+"/"+Date.now()+".jpg";
+    const{error:upErr}=await supabaseClient.storage.from("chat-media").upload(path,blob,{contentType:"image/jpeg"});
+    if(upErr)throw upErr;
+    const r=await insertMessage({content_type:"image",content_url:path});
+    if(r)setStatus("✅ Photo envoyée","ok");
+  }catch(err){setStatus("❌ "+err.message,"err");}
+  finally{e.target.value="";}
+});
 
-    function updatePresenceDot(lastSeenAt, isSeed) {
-      const dot = document.getElementById("onlineDot");
-      const isOnline = isSeed || (lastSeenAt && ((Date.now() - new Date(lastSeenAt).getTime()) / 60000 < 5));
-      dot.className = "w-2.5 h-2.5 rounded-full shrink-0 " + (isOnline ? "bg-emerald-500 animate-pulse" : "bg-gray-400");
-    }
-    async function refreshOtherPresence() {
-      const { data } = await supabaseClient.from("profiles").select("last_seen_at, is_seed").eq("id", otherUserId).single();
-      if (data) updatePresenceDot(data.last_seen_at, data.is_seed);
-    }
-    async function updateMyPresence() {
-      if (!currentUser) return;
-      await supabaseClient.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", currentUser.id);
-    }
+document.getElementById("micBtn").addEventListener("click",async()=>{
+  if(isRecording){try{mediaRecorder.stop();}catch(e){}return;}
+  try{
+    setStatus("🎤 Micro…","info");
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    let mimeType="";
+    for(const opt of ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg"]){if(MediaRecorder.isTypeSupported(opt)){mimeType=opt;break;}}
+    mediaRecorder=mimeType?new MediaRecorder(stream,{mimeType}):new MediaRecorder(stream);
+    audioChunks=[];
+    mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      isRecording=false;
+      document.getElementById("micBtn").textContent="🎤";
+      document.getElementById("micBtn").classList.remove("bg-red-500","text-white");
+      const totalSize=audioChunks.reduce((a,c)=>a+c.size,0);
+      if(totalSize<500){setStatus("❌ Enregistrement vide","err");return;}
+      try{
+        const actualType=mediaRecorder.mimeType||mimeType||"audio/webm";
+        const blob=new Blob(audioChunks,{type:actualType});
+        const ext=actualType.includes("mp4")?"m4a":actualType.includes("ogg")?"ogg":"webm";
+        setStatus("⏳ Upload…","info");
+        const path=conversationId+"/"+currentUser.id+"/"+Date.now()+"."+ext;
+        const{error:upErr}=await supabaseClient.storage.from("chat-media").upload(path,blob,{contentType:actualType});
+        if(upErr)throw upErr;
+        const r=await insertMessage({content_type:"audio",content_url:path});
+        if(r)setStatus("✅ Vocal envoyé","ok");
+      }catch(err){setStatus("❌ "+err.message,"err");}
+    };
+    mediaRecorder.start();
+    isRecording=true;
+    document.getElementById("micBtn").textContent="⏹";
+    document.getElementById("micBtn").classList.add("bg-red-500","text-white");
+    setStatus("🔴 Enregistrement…","rec");
+  }catch(err){setStatus("❌ Micro : "+err.message,"err");}
+});
 
-    async function askAI(userText) {
-      setStatus("💬 " + otherUserName + " est en train d'écrire…", "typing");
-
-      const p = otherUserData || {};
-      let age = null;
-      if (p.birth_date) {
-        const b = new Date(p.birth_date), t = new Date();
-        age = t.getFullYear() - b.getFullYear();
-        const m = t.getMonth() - b.getMonth();
-        if (m < 0 || (m === 0 && t.getDate() < b.getDate())) age--;
-      }
-
-      const seed = {
-        username: p.username,
-        age: age,
-        gender: p.gender,
-        city: p.city,
-        country: p.country,
-        profession: p.profession,
-        religiosity_level: p.religiosity_level,
-        marital_status: p.marital_status,
-        bio: p.bio
-      };
-
-      const { data: history } = await supabaseClient.from("messages")
-        .select("sender_id, text_body, content_type")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: false }).limit(8);
-
-      const historyArr = (history || []).reverse()
-        .filter(m => m.content_type === "text" && m.text_body)
-        .map(m => ({
-          role: m.sender_id === currentUser.id ? "user" : "model",
-          text: m.text_body
-        }));
-
-      let replyText = null;
-      try {
-        const { data, error } = await supabaseClient.functions.invoke("generate-seed-reply", {
-          body: { seed, history: historyArr, userMessage: userText }
-        });
-        if (error) {
-          console.error("Edge Function error:", error);
-          setStatus("❌ Erreur IA", "err");
-          return null;
-        }
-        replyText = data?.reply?.trim() || null;
-      } catch (e) {
-        console.error("askAI error:", e);
-        setStatus("❌ Erreur IA", "err");
-        return null;
-      }
-
-      if (!replyText) { setStatus("❌ Erreur IA", "err"); return null; }
-
-      const { data: inserted, error: insErr } = await supabaseClient.from("messages")
-        .insert({ conversation_id: conversationId, sender_id: otherUserId, content_type: "text", text_body: replyText })
-        .select().single();
-      if (insErr) { setStatus("❌ " + insErr.message, "err"); return null; }
-
-      await supabaseClient.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", otherUserId);
-      await renderMessage(inserted);
-      setStatus("Prêt", "info");
-      await refreshQuota();
-      await refreshOtherPresence();
-      return inserted;
-    }
-
-    async function sendMirrorMessage() {
-      if (limitMessageSent) return;
-      limitMessageSent = true;
-
-      const { data, error } = await supabaseClient.rpc("send_limit_message", {
-        p_conversation_id: conversationId
-      });
-
-      if (error) { console.error("Erreur miroir :", error); return; }
-      if (data && data.ok && data.msg_id) {
-        const { data: msg } = await supabaseClient.from("messages").select("*").eq("id", data.msg_id).single();
-        if (msg) await renderMessage(msg);
-      }
-    }
-
-    async function refreshQuota() {
-      const userCount = await countUserMessages();
-      const otherCount = await countOtherMessages();
-
-      const { data: myUnlock } = await supabaseClient.rpc("has_unlocked", { p_conversation_id: conversationId });
-      iHaveUnlocked = myUnlock === true;
-
-      const { data: unlocks } = await supabaseClient.from("conversation_unlocks")
-        .select("user_id").eq("conversation_id", conversationId);
-      otherHasUnlocked = (unlocks || []).some(u => u.user_id === otherUserId);
-
-      updateQuotaUI(userCount, otherCount);
-    }
-
-    function updateQuotaUI(userCount, otherCount) {
-      const q = document.getElementById("quota");
-      const paywall = document.getElementById("paywall");
-      const lockedByOther = document.getElementById("lockedByOther");
-      const composer = document.getElementById("composer");
-
-      const iAmLocked = !iHaveUnlocked && userCount >= MAX_USER_MESSAGES;
-      const otherIsLocked = !otherHasUnlocked && otherCount >= MAX_USER_MESSAGES;
-
-      paywall.classList.add("hidden");
-      lockedByOther.classList.add("hidden");
-      composer.classList.remove("hidden");
-
-      if (iAmLocked) {
-        q.textContent = "5/5";
-        q.className = "text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700 whitespace-nowrap";
-        paywall.classList.remove("hidden");
-        composer.classList.add("hidden");
-      } else if (otherIsLocked) {
-        q.textContent = "En attente";
-        q.className = "text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 whitespace-nowrap";
-        lockedByOther.classList.remove("hidden");
-        composer.classList.add("hidden");
-      } else if (iHaveUnlocked) {
-        q.textContent = "Illimité ✓";
-        q.className = "text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap";
-      } else {
-        const r = MAX_USER_MESSAGES - userCount;
-        q.textContent = r + " msg" + (r > 1 ? "s" : "");
-        q.className = "text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 whitespace-nowrap";
-      }
-    }
-
-    async function renderMessage(m, force = false) {
-      if (!force && displayedIds.has(m.id)) return;
-      if (deletedForMe.has(m.id)) return;
-      displayedIds.add(m.id);
-      const emptyMsg = document.getElementById("emptyMsg");
-      if (emptyMsg) emptyMsg.remove();
-
-      const mine = m.sender_id === currentUser.id;
-      const time = new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-      let content = "";
-      if (m.content_type === "text") {
-        content = '<p class="whitespace-pre-wrap break-words">' + escapeHtml(m.text_body) + '</p>';
-      } else if (m.content_type === "image") {
-        const url = m.content_url.startsWith("http") ? m.content_url : await signedUrl(m.content_url);
-        content = url ? '<img src="' + url + '" class="max-w-full rounded-lg">' : '<p class="italic text-xs">[image indisponible]</p>';
-      } else if (m.content_type === "audio") {
-        const url = m.content_url.startsWith("http") ? m.content_url : await signedUrl(m.content_url);
-        content = url ? '<audio controls src="' + url + '" style="width:220px"></audio>' : '<p class="italic text-xs">[audio indisponible]</p>';
-      }
-      const menuBtn = '<button onclick="event.stopPropagation(); openMenu(\'' + m.id + '\', ' + mine + ');" class="absolute top-1 ' + (mine ? "left-1" : "right-1") + ' w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center leading-none">⋮</button>';
-      const html =
-        '<div class="flex ' + (mine ? "justify-end" : "justify-start") + '" data-msg-id="' + m.id + '">' +
-          '<div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm ' + (mine ? "bg-emerald-600 text-white rounded-br-md" : "bg-white text-slate-800 rounded-bl-md shadow-sm") + '">' +
-            menuBtn +
-            '<div class="pr-5 pl-1">' + content +
-              '<p class="text-[10px] mt-1 ' + (mine ? "text-emerald-100" : "text-slate-400") + '">' + time + '</p>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
-      document.getElementById("messages").insertAdjacentHTML("beforeend", html);
-      document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
-    }
-
-    function openMenu(msgId, mine) {
-      selectedMsg = msgId;
-      document.getElementById("msgMenu").classList.remove("hidden");
-      const btn = document.getElementById("deleteAllBtn");
-      if (mine) btn.classList.remove("hidden"); else btn.classList.add("hidden");
-    }
-    function closeMenu() { document.getElementById("msgMenu").classList.add("hidden"); selectedMsg = null; }
-    function deleteForMe() {
-      if (!selectedMsg) return;
-      deletedForMe.add(selectedMsg); saveDeletedForMe();
-      const el = document.querySelector("[data-msg-id=\"" + selectedMsg + "\"]");
-      if (el) el.remove();
-      closeMenu();
-      setStatus("🗑️ Supprimé pour vous", "ok");
-      setTimeout(() => setStatus("Prêt", "info"), 2000);
-    }
-    async function deleteForEveryone() {
-      if (!selectedMsg) return;
-      if (!confirm("Supprimer ce message pour TOUT LE MONDE ?")) return;
-      const { error } = await supabaseClient.from("messages").delete().eq("id", selectedMsg);
-      if (error) { setStatus("❌ " + error.message, "err"); closeMenu(); return; }
-      const el = document.querySelector("[data-msg-id=\"" + selectedMsg + "\"]");
-      if (el) el.remove();
-      closeMenu();
-      setStatus("🗑️ Supprimé", "ok");
-      setTimeout(() => setStatus("Prêt", "info"), 2000);
-    }
-
-    async function markAllAsRead() {
-      await supabaseClient.from("messages").update({ is_read: true })
-        .eq("conversation_id", conversationId).neq("sender_id", currentUser.id).eq("is_read", false);
-    }
-
-    async function insertMessage(payload) {
-      const { data, error } = await supabaseClient.from("messages").insert({
-        conversation_id: conversationId, sender_id: currentUser.id, ...payload
-      }).select().single();
-      if (error) { setStatus("❌ " + error.message, "err"); return null; }
-      await renderMessage(data);
-      return data;
-    }
-
-    async function init() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) { window.location.href = "login.html"; return; }
-      currentUser = user;
-      loadDeletedForMe();
-
-      if (!otherUserId) { setStatus("❌ Utilisateur non précisé", "err"); return; }
-
-      const { data: other } = await supabaseClient.from("profiles").select("*").eq("id", otherUserId).single();
-      if (other) {
-        otherUserData = other;
-        otherUserName = other.username || "Utilisateur";
-        isSeedProfile = other.is_seed === true;
-        document.getElementById("otherName").textContent = otherUserName;
-        document.getElementById("otherInfo").textContent = (other.city || "") + (other.country ? ", " + other.country : "");
-        updatePresenceDot(other.last_seen_at, other.is_seed);
-      }
-
-      const { data: convId, error: rpcErr } = await supabaseClient.rpc("get_or_create_conversation", { p_other_user: otherUserId });
-      if (rpcErr) { setStatus("❌ " + rpcErr.message, "err"); return; }
-      conversationId = convId;
-
-      const { data: msgs } = await supabaseClient.from("messages")
-        .select("*").eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true }).limit(200);
-
-      document.getElementById("messages").innerHTML = "";
-      if (!msgs || !msgs.length) {
-        document.getElementById("messages").innerHTML =
-          '<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';
-      } else {
-        for (const m of msgs) await renderMessage(m);
-      }
-
-      await markAllAsRead();
-      await refreshQuota();
-      await updateMyPresence();
-      await refreshOtherPresence();
-
-      presenceInterval = setInterval(async () => {
-        await updateMyPresence();
-        await refreshOtherPresence();
-        await refreshQuota();
-      }, 15000);
-
-      try {
-        channel = supabaseClient.channel("conv:" + conversationId)
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages",
-            filter: "conversation_id=eq." + conversationId }, async (payload) => {
-            if (displayedIds.has(payload.new.id)) return;
-            await renderMessage(payload.new);
-            if (payload.new.sender_id !== currentUser.id) {
-              await supabaseClient.from("messages").update({ is_read: true }).eq("id", payload.new.id);
-            }
-            refreshQuota();
-          })
-          .subscribe();
-      } catch(e) { console.warn("Realtime indisponible", e); }
-
-      setStatus("Prêt", "info");
-    }
-
-    async function sendMessage() {
-      const input = document.getElementById("input");
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-
-      const r = await insertMessage({ content_type: "text", text_body: text });
-      if (!r) return;
-      setStatus("✅ Envoyé", "ok");
-
-      const userCount = await countUserMessages();
-
-      if (userCount >= MAX_USER_MESSAGES && !iHaveUnlocked) {
-        if (!limitMessageSent) await sendMirrorMessage();
-        await refreshQuota();
-      } else if (userCount < MAX_USER_MESSAGES) {
-        if (isSeedProfile) await askAI(text);
-      }
-    }
-
-    document.getElementById("fileInput").addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      setStatus("⏳ Photo…", "info");
-      try {
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = () => { img.src = reader.result; };
-        reader.readAsDataURL(file);
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-        const canvas = document.createElement("canvas");
-        const ratio = Math.min(1, 1280 / Math.max(img.width, img.height));
-        canvas.width = img.width * ratio;
-        canvas.height = img.height * ratio;
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.82));
-        const path = conversationId + "/" + currentUser.id + "/" + Date.now() + ".jpg";
-        const { error: upErr } = await supabaseClient.storage.from("chat-media").upload(path, blob, { contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-        const r = await insertMessage({ content_type: "image", content_url: path });
-        if (r) setStatus("✅ Photo envoyée", "ok");
-      } catch (err) { setStatus("❌ " + err.message, "err"); }
-      finally { e.target.value = ""; }
-    });
-
-    document.getElementById("micBtn").addEventListener("click", async () => {
-      if (isRecording) { try { mediaRecorder.stop(); } catch(e) {} return; }
-      try {
-        setStatus("🎤 Micro…", "info");
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        let mimeType = "";
-        for (const opt of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
-          if (MediaRecorder.isTypeSupported(opt)) { mimeType = opt; break; }
-        }
-        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-        mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach(t => t.stop());
-          isRecording = false;
-          document.getElementById("micBtn").textContent = "🎤";
-          document.getElementById("micBtn").classList.remove("bg-red-500", "text-white");
-          const totalSize = audioChunks.reduce((a, c) => a + c.size, 0);
-          if (totalSize < 500) { setStatus("❌ Enregistrement vide", "err"); return; }
-          try {
-            const actualType = mediaRecorder.mimeType || mimeType || "audio/webm";
-            const blob = new Blob(audioChunks, { type: actualType });
-            const ext = actualType.includes("mp4") ? "m4a" : actualType.includes("ogg") ? "ogg" : "webm";
-            setStatus("⏳ Upload vocal…", "info");
-            const path = conversationId + "/" + currentUser.id + "/" + Date.now() + "." + ext;
-            const { error: upErr } = await supabaseClient.storage.from("chat-media").upload(path, blob, { contentType: actualType });
-            if (upErr) throw upErr;
-            const r = await insertMessage({ content_type: "audio", content_url: path });
-            if (r) setStatus("✅ Vocal envoyé", "ok");
-          } catch (err) { setStatus("❌ " + err.message, "err"); }
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById("micBtn").textContent = "⏹";
-        document.getElementById("micBtn").classList.add("bg-red-500", "text-white");
-        setStatus("🔴 Enregistrement… Touche ⏹", "rec");
-      } catch (err) { setStatus("❌ Micro : " + err.message, "err"); }
-    });
-
-    function unlockConversation() {
-      window.location.href = "paiement.html?user=" + otherUserId;
-    }
-
-    async function reportUser() {
-      const reason = prompt("Raison :\n1. Comportement déplacé\n2. Faux profil\n3. Spam\n4. Autre");
-      if (!reason) return;
-      const details = prompt("Précisez :") || "";
-      const { error } = await supabaseClient.from("reports").insert({
-        reporter_id: currentUser.id, reported_id: otherUserId, reason, details
-      });
-      alert(error ? "Erreur : " + error.message : "✅ Signalement envoyé.");
-    }
-
-    document.getElementById("input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
-
-    window.addEventListener("beforeunload", () => {
-      if (presenceInterval) clearInterval(presenceInterval);
-    });
-
-    init();
-  </script>
+function unlockConversation(){window.location.href="paiement.html?user="+otherUserId;}
+async function reportUser(){const reason=prompt("Raison :\n1. Déplacé\n2. Faux profil\n3. Spam\n4. Autre");if(!reason)return;const details=prompt("Précisez :")||"";const{error}=await supabaseClient.from("reports").insert({reporter_id:currentUser.id,reported_id:otherUserId,reason,details});alert(error?"Erreur : "+error.message:"✅ Signalement envoyé.");}
+document.getElementById("input").addEventListener("keydown",e=>{if(e.key==="Enter")sendMessage();});
+window.addEventListener("beforeunload",()=>{if(presenceInterval)clearInterval(presenceInterval);});
+init();
+</script>
 </body>
 </html>
