@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirmation — Nikah</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body style="font-family:sans-serif;text-align:center;padding:40px;">
+<p id="status">Vérification en cours…</p>
+<script>
+(async () => {
+  const statusEl = document.getElementById('status');
+  const urlParams = new URLSearchParams(window.location.search);
+  const tokenHash = urlParams.get('token_hash');
+  const type = urlParams.get('type');
+
+  if (!tokenHash || !type) {
+    statusEl.textContent = 'Lien invalide.';
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: type
+  });
+
+  if (error) {
+    statusEl.textContent = '❌ Lien expiré ou invalide. Veuillez recommencer.';
+    return;
+  }
+
+  window.location.href = 'reset-password.html';
+})();
+</script>
+</body>
+</html>
