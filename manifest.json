@@ -1,26 +1,26 @@
 {
-  "name": "Nikah — Mariage islamique",
+  "name": "Nikah — Mariage Islamique",
   "short_name": "Nikah",
-  "description": "Plateforme éthique de mariage islamique",
+  "description": "Plateforme de mariage islamique éthique",
   "start_url": "/login.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#065F46",
-  "theme_color": "#065F46",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
   "lang": "fr",
   "icons": [
     {
-      "src": "android-chrome-192x192.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "android-chrome-512x512.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
