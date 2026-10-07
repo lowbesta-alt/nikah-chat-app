@@ -37,8 +37,8 @@
 
 <div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
   <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 5 messages gratuits.</p>
-  <p class="text-xs text-amber-700 mb-3">Pour continuer en illimité, débloquez pour 600 FCFA / 1 $.</p>
-  <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold">💳 Débloquer maintenant — 600 FCFA</button>
+  <p class="text-xs text-amber-700 mb-3">Pour continuer en illimité, débloquez pour un dollar symbolique (1 $).</p>
+  <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold">💳 Débloquer maintenant — 1 $</button>
 </div>
 
 <div id="lockedByOther" class="hidden bg-blue-50 border-t border-blue-200 p-4 text-center shrink-0">
@@ -67,7 +67,9 @@
 <script>
 let currentUser=null,conversationId=null,otherUserId=null,otherUserName="",otherUserData=null;
 let isSeedProfile=false,iHaveUnlocked=false,otherHasUnlocked=false;
-let mediaRecorder=null,audioChunks=[],isRecording=false,selectedMsg=null,presenceInterval=null,limitMessageSent=false,channel=null;
+let mediaRecorder=null,audioChunks=[],isRecording=false,selectedMsg=null;
+let presenceInterval=null,pollingInterval=null,limitMessageSent=false,channel=null;
+let lastMessageTime=null;
 const MAX_USER_MESSAGES=5;
 const displayedIds=new Set();
 let deletedForMe=new Set();
@@ -84,6 +86,29 @@ async function countOtherMessages(){const{count}=await supabaseClient.from("mess
 function updatePresenceDot(ls,is){const d=document.getElementById("onlineDot");const on=(ls&&((Date.now()-new Date(ls).getTime())/60000<5));d.className="w-2.5 h-2.5 rounded-full shrink-0 "+(on?"bg-emerald-500 animate-pulse":"bg-gray-400");}
 async function refreshOtherPresence(){const{data}=await supabaseClient.from("profiles").select("last_seen_at,is_seed").eq("id",otherUserId).single();if(data)updatePresenceDot(data.last_seen_at,data.is_seed);}
 async function updateMyPresence(){if(!currentUser)return;await supabaseClient.from("profiles").update({last_seen_at:new Date().toISOString()}).eq("id",currentUser.id);}
+
+/* ============ POLLING : récupérer les nouveaux messages toutes les 3 sec ============ */
+async function pollNewMessages(){
+  if(!conversationId||!currentUser)return;
+  try{
+    let query=supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true});
+    if(lastMessageTime){query=query.gt("created_at",lastMessageTime);}
+    const{data,error}=await query;
+    if(error||!data||!data.length)return;
+    let hasNew=false;
+    for(const m of data){
+      lastMessageTime=m.created_at;
+      if(displayedIds.has(m.id))continue;
+      if(deletedForMe.has(m.id))continue;
+      await renderMessage(m);
+      hasNew=true;
+      if(m.sender_id!==currentUser.id){
+        await supabaseClient.from("messages").update({is_read:true}).eq("id",m.id);
+      }
+    }
+    if(hasNew)refreshQuota();
+  }catch(e){/* silencieux */}
+}
 
 async function sendMirrorMessage(){if(limitMessageSent)return;limitMessageSent=true;const{data,error}=await supabaseClient.rpc("send_limit_message",{p_conversation_id:conversationId});if(error)return;if(data&&data.ok&&data.msg_id){const{data:msg}=await supabaseClient.from("messages").select("*").eq("id",data.msg_id).single();if(msg)await renderMessage(msg);}}
 
@@ -106,6 +131,7 @@ async function renderMessage(m,force=false){
   if(!force&&displayedIds.has(m.id))return;
   if(deletedForMe.has(m.id))return;
   displayedIds.add(m.id);
+  if(m.created_at&&(!lastMessageTime||m.created_at>lastMessageTime))lastMessageTime=m.created_at;
   const em=document.getElementById("emptyMsg");if(em)em.remove();
   const mine=m.sender_id===currentUser.id;
   const time=new Date(m.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
@@ -141,12 +167,21 @@ async function init(){
   const{data:msgs}=await supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true}).limit(200);
   document.getElementById("messages").innerHTML="";
   if(!msgs||!msgs.length){document.getElementById("messages").innerHTML='<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';}
-  else{for(const m of msgs)await renderMessage(m);}
+  else{
+    for(const m of msgs)await renderMessage(m);
+    lastMessageTime=msgs[msgs.length-1].created_at;
+  }
   await markAllAsRead();
   await refreshQuota();
   await updateMyPresence();
   await refreshOtherPresence();
+
   presenceInterval=setInterval(async()=>{await updateMyPresence();await refreshOtherPresence();await refreshQuota();},15000);
+
+  /* DÉMARRER LE POLLING : toutes les 3 secondes */
+  pollingInterval=setInterval(pollNewMessages,3000);
+
+  /* Essayer aussi le temps réel (au cas où ça marcherait) */
   try{channel=supabaseClient.channel("conv:"+conversationId).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+conversationId},async(payload)=>{if(displayedIds.has(payload.new.id))return;await renderMessage(payload.new);if(payload.new.sender_id!==currentUser.id){await supabaseClient.from("messages").update({is_read:true}).eq("id",payload.new.id);}refreshQuota();}).subscribe();}catch(e){}
   setStatus("Prêt","info");
 }
@@ -225,7 +260,7 @@ document.getElementById("micBtn").addEventListener("click",async()=>{
 function unlockConversation(){window.location.href="paiement.html?user="+otherUserId;}
 async function reportUser(){const reason=prompt("Raison :\n1. Déplacé\n2. Faux profil\n3. Spam\n4. Autre");if(!reason)return;const details=prompt("Précisez :")||"";const{error}=await supabaseClient.from("reports").insert({reporter_id:currentUser.id,reported_id:otherUserId,reason,details});alert(error?"Erreur : "+error.message:"✅ Signalement envoyé.");}
 document.getElementById("input").addEventListener("keydown",e=>{if(e.key==="Enter")sendMessage();});
-window.addEventListener("beforeunload",()=>{if(presenceInterval)clearInterval(presenceInterval);});
+window.addEventListener("beforeunload",()=>{if(presenceInterval)clearInterval(presenceInterval);if(pollingInterval)clearInterval(pollingInterval);});
 init();
 </script>
 </body>
