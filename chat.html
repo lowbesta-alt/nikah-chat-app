@@ -37,25 +37,36 @@
   </main>
 
   <script>
+    let currentUser = null;
+    let presenceInterval = null;
+    let refreshInterval = null;
+
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
 
     async function loadNotifBadge() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) return;
+      if (!currentUser) return;
       const { data: convs } = await supabaseClient
         .from('conversations').select('id')
-        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+        .or('participant_one.eq.' + currentUser.id + ',participant_two.eq.' + currentUser.id);
       if (!convs || !convs.length) return;
       const convIds = convs.map(c => c.id);
       const { count } = await supabaseClient
         .from('messages').select('*', { count: 'exact', head: true })
-        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
+        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', currentUser.id);
       const badge = document.getElementById('notifBadge');
       if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
       else badge.classList.add('hidden');
+    }
+
+    /* ============ MA PRÉSENCE (je suis en ligne) ============ */
+    async function updateMyPresence() {
+      if (!currentUser) return;
+      await supabaseClient.from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', currentUser.id);
     }
 
     function timeAgo(dateStr) {
@@ -67,36 +78,35 @@
       return Math.floor(diff / 86400) + ' j';
     }
 
-    (async () => {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) { window.location.href = 'login.html'; return; }
+    function isUserOnline(lastSeenAt) {
+      return lastSeenAt && ((Date.now() - new Date(lastSeenAt).getTime()) / 60000 < 5);
+    }
 
-      loadNotifBadge();
-      setInterval(loadNotifBadge, 15000);
-
-      const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', user.id).single();
-      if (profile?.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
+    async function loadConversations() {
+      if (!currentUser) return;
 
       const { data: convs } = await supabaseClient
         .from('conversations').select('*')
-        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id)
+        .or('participant_one.eq.' + currentUser.id + ',participant_two.eq.' + currentUser.id)
         .order('last_message_at', { ascending: false, nullsFirst: false });
 
       const list = document.getElementById('convList');
       if (!convs || !convs.length) {
         document.getElementById('empty').classList.remove('hidden');
+        list.innerHTML = '';
         return;
       }
+      document.getElementById('empty').classList.add('hidden');
 
-      const otherIds = convs.map(c => c.participant_one === user.id ? c.participant_two : c.participant_one);
+      const otherIds = convs.map(c => c.participant_one === currentUser.id ? c.participant_two : c.participant_one);
       const { data: users } = await supabaseClient
-        .from('profiles').select('id, username, avatar_url, city, country').in('id', otherIds);
+        .from('profiles').select('id, username, avatar_url, city, country, last_seen_at').in('id', otherIds);
 
       const convIds = convs.map(c => c.id);
       const { data: unreadMsgs } = await supabaseClient
         .from('messages').select('conversation_id')
         .in('conversation_id', convIds)
-        .eq('is_read', false).neq('sender_id', user.id);
+        .eq('is_read', false).neq('sender_id', currentUser.id);
 
       const unreadByConv = {};
       (unreadMsgs || []).forEach(m => {
@@ -104,35 +114,72 @@
       });
 
       list.innerHTML = convs.map(c => {
-        const otherId = c.participant_one === user.id ? c.participant_two : c.participant_one;
+        const otherId = c.participant_one === currentUser.id ? c.participant_two : c.participant_one;
         const other = users?.find(u => u.id === otherId) || { username: 'Utilisateur' };
         const avatar = other.avatar_url
           ? `<img src="${other.avatar_url}" class="w-12 h-12 rounded-full object-cover">`
           : `<div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700">${(other.username||'?').charAt(0).toUpperCase()}</div>`;
+
+        const online = isUserOnline(other.last_seen_at);
+        const dot = `<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'} border-2 border-white"></span>`;
+
         const unread = unreadByConv[c.id] || 0;
         const unreadBadge = unread > 0
           ? `<span class="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">${unread}</span>`
           : '';
+
         const lockBadge = c.is_unlocked
           ? '<span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">Illimité</span>'
           : `<span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">${c.message_count}/10</span>`;
 
         return `
           <a href="chat-room.html?user=${otherId}" class="block bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 hover:bg-emerald-50 transition">
-            ${avatar}
+            <div class="relative shrink-0">
+              ${avatar}
+              ${dot}
+            </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <p class="font-semibold truncate">${other.username}</p>
                 ${lockBadge}
               </div>
-              <p class="text-xs text-slate-500 truncate">${other.city || ''}${other.city && other.country ? ', ' : ''}${other.country || ''} · ${timeAgo(c.last_message_at)}</p>
+              <p class="text-xs text-slate-500 truncate">${online ? '<span class="text-emerald-600 font-medium">En ligne</span>' : (other.city || '') + (other.city && other.country ? ', ' : '') + (other.country || '')} · ${timeAgo(c.last_message_at)}</p>
             </div>
             ${unreadBadge}
             <span class="text-emerald-600">→</span>
           </a>
         `;
       }).join('');
+    }
+
+    (async () => {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = 'login.html'; return; }
+      currentUser = user;
+
+      // Présence immédiate + toutes les 15 sec
+      await updateMyPresence();
+      presenceInterval = setInterval(updateMyPresence, 15000);
+
+      // Vérifier admin
+      const { data: profile } = await supabaseClient.from('profiles').select('is_admin').eq('id', user.id).single();
+      if (profile?.is_admin) document.getElementById('adminBtn').classList.remove('hidden');
+
+      // Charger les conversations + badge
+      await loadConversations();
+      await loadNotifBadge();
+
+      // Rafraîchir toutes les 15 sec (pour voir les changements de statut en ligne)
+      refreshInterval = setInterval(async () => {
+        await loadConversations();
+        await loadNotifBadge();
+      }, 15000);
     })();
+
+    window.addEventListener('beforeunload', () => {
+      if (presenceInterval) clearInterval(presenceInterval);
+      if (refreshInterval) clearInterval(refreshInterval);
+    });
   </script>
 </body>
 </html>
