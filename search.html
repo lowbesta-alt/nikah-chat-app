@@ -15,8 +15,8 @@
         <span class="text-xl">🌙</span><span>InshaAllah</span>
       </div>
       <nav class="flex items-center gap-3 text-sm">
-        <a href="dashboard.html" class="text-slate-600 hover:text-emerald-700">👤</a>
-        <a href="chat.html" class="text-slate-600 hover:text-emerald-700 relative">
+        <a href="dashboard.html" class="text-slate-600 hover:text-emerald-700 text-2xl" title="Mon profil">👤</a>
+        <a href="chat.html" class="text-slate-600 hover:text-emerald-700 relative text-2xl" title="Messages">
           🔔
           <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
         </a>
@@ -89,27 +89,35 @@
   </main>
 
   <script>
+    let currentUser = null;
+    let presenceInterval = null;
+    let refreshInterval = null;
+
     async function logout() {
       await supabaseClient.auth.signOut();
       window.location.href = 'index.html';
     }
 
     async function loadNotifBadge() {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) return;
+      if (!currentUser) return;
       const { data: convs } = await supabaseClient.from('conversations').select('id')
-        .or('participant_one.eq.' + user.id + ',participant_two.eq.' + user.id);
+        .or('participant_one.eq.' + currentUser.id + ',participant_two.eq.' + currentUser.id);
       if (!convs || !convs.length) return;
       const convIds = convs.map(c => c.id);
       const { count } = await supabaseClient.from('messages').select('*', { count: 'exact', head: true })
-        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', user.id);
+        .in('conversation_id', convIds).eq('is_read', false).neq('sender_id', currentUser.id);
       const badge = document.getElementById('notifBadge');
       if (count && count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.classList.remove('hidden'); }
       else badge.classList.add('hidden');
     }
 
-    loadNotifBadge();
-    setInterval(loadNotifBadge, 15000);
+    /* ============ MISE À JOUR DE MA PRÉSENCE (je suis en ligne) ============ */
+    async function updateMyPresence() {
+      if (!currentUser) return;
+      await supabaseClient.from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', currentUser.id);
+    }
 
     function calcAge(birthDate) {
       if (!birthDate) return null;
@@ -121,14 +129,15 @@
     }
 
     async function search(filters = {}) {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      if (!user) { window.location.href = 'login.html'; return; }
+      if (!currentUser) return;
 
       const results = document.getElementById('results');
       const info = document.getElementById('resultsInfo');
-      results.innerHTML = '<p class="text-center text-slate-400 py-6 col-span-full">Recherche…</p>';
+      if (!results.innerHTML || results.innerHTML.indexOf('Recherche') !== -1) {
+        results.innerHTML = '<p class="text-center text-slate-400 py-6 col-span-full">Recherche…</p>';
+      }
 
-      let q = supabaseClient.from('profiles').select('*').neq('id', user.id);
+      let q = supabaseClient.from('profiles').select('*').neq('id', currentUser.id);
       if (filters.gender) q = q.eq('gender', filters.gender);
       if (filters.country) q = q.ilike('country', '%' + filters.country + '%');
       if (filters.city) q = q.ilike('city', '%' + filters.city + '%');
@@ -155,14 +164,14 @@
           ? '<img src="' + p.avatar_url + '" class="w-full h-full object-cover">'
           : '<div class="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-700 font-bold text-4xl">' + initials + '</div>';
 
-        // Point vert uniquement pour les vrais utilisateurs actifs
+        // EN LIGNE : actif dans les 5 dernières minutes
         const isOnline = (p.last_seen_at && ((Date.now() - new Date(p.last_seen_at).getTime()) / 60000 < 5));
 
         return `
           <a href="profile-view.html?id=${p.id}" class="block bg-white rounded-2xl shadow overflow-hidden hover:shadow-lg transition">
             <div class="relative aspect-square bg-slate-100">
               ${photo}
-              <span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-400'} border-2 border-white shadow"></span>
+              <span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'} border-2 border-white shadow"></span>
             </div>
             <div class="p-3">
               <p class="font-semibold text-slate-800 text-sm truncate">${p.username || 'Anonyme'}</p>
@@ -173,9 +182,8 @@
       }).join('');
     }
 
-    document.getElementById('searchForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      search({
+    function getCurrentFilters() {
+      return {
         gender: document.getElementById('filter_gender').value,
         country: document.getElementById('filter_country').value.trim(),
         city: document.getElementById('filter_city').value.trim(),
@@ -185,10 +193,43 @@
         children: document.getElementById('filter_children').value,
         ageMin: parseInt(document.getElementById('filter_age_min').value) || null,
         ageMax: parseInt(document.getElementById('filter_age_max').value) || null
-      });
+      };
+    }
+
+    document.getElementById('searchForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      search(getCurrentFilters());
     });
 
-    search();
+    /* ============ INITIALISATION ============ */
+    (async () => {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) { window.location.href = 'login.html'; return; }
+      currentUser = user;
+
+      // 1ère mise à jour immédiate
+      await updateMyPresence();
+
+      // Mise à jour de ma présence toutes les 15 sec
+      presenceInterval = setInterval(updateMyPresence, 15000);
+
+      // Badge notifications
+      loadNotifBadge();
+      setInterval(loadNotifBadge, 15000);
+
+      // Première recherche
+      search();
+
+      // Rafraîchir la liste toutes les 30 sec (pour voir les gens passer en ligne)
+      refreshInterval = setInterval(() => {
+        search(getCurrentFilters());
+      }, 30000);
+    })();
+
+    window.addEventListener('beforeunload', () => {
+      if (presenceInterval) clearInterval(presenceInterval);
+      if (refreshInterval) clearInterval(refreshInterval);
+    });
   </script>
 </body>
 </html>
