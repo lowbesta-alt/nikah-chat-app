@@ -35,14 +35,20 @@
 
 <main id="messages" class="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 max-w-3xl w-full mx-auto min-h-0"></main>
 
-<div id="paywall" class="hidden bg-amber-50 border-t border-amber-200 p-4 text-center shrink-0">
-  <p class="text-sm text-amber-800 font-medium mb-2">🔓 Vous avez utilisé vos 5 messages gratuits.</p>
-  <p class="text-xs text-amber-700 mb-3">Pour continuer en illimité, débloquez pour un dollar symbolique (1 $).</p>
-  <button onclick="unlockConversation()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold">💳 Débloquer maintenant — 1 $</button>
+<div id="lockScreen" class="hidden flex-1 bg-amber-50 overflow-y-auto">
+  <div class="max-w-md mx-auto p-6 text-center pt-12">
+    <div class="text-6xl mb-4">🔒</div>
+    <h2 class="text-xl font-bold text-amber-900 mb-3">Votre conversation est en pause</h2>
+    <p class="text-sm text-amber-800 mb-2">Vous avez utilisé vos 5 messages gratuits.</p>
+    <p class="text-sm text-amber-800 mb-6">Pour reprendre cette conversation et accéder à tous vos messages, débloquez pour un dollar symbolique.</p>
+    <button onclick="unlockConversation()" class="w-full bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-semibold shadow">
+      💳 Débloquer maintenant — 1 $
+    </button>
+  </div>
 </div>
 
-<div id="lockedByOther" class="hidden bg-blue-50 border-t border-blue-200 p-4 text-center shrink-0">
-  <p class="text-sm text-blue-800 font-medium">⏸️ Votre interlocuteur a atteint sa limite.</p>
+<div id="infoBanner" class="hidden bg-blue-50 border-t border-blue-200 p-3 text-center shrink-0">
+  <p id="infoBannerText" class="text-xs text-blue-700"></p>
 </div>
 
 <footer id="composer" class="bg-white border-t shrink-0 safe-bottom">
@@ -66,15 +72,49 @@
 
 <script>
 let currentUser=null,conversationId=null,otherUserId=null,otherUserName="",otherUserData=null;
-let isSeedProfile=false,iHaveUnlocked=false,otherHasUnlocked=false;
+let iHaveUnlocked=false,otherHasUnlocked=false,bonusUsed=0;
 let mediaRecorder=null,audioChunks=[],isRecording=false,selectedMsg=null;
 let presenceInterval=null,pollingInterval=null,limitMessageSent=false,channel=null;
 let lastMessageTime=null;
-const MAX_USER_MESSAGES=5;
+const MAX_USER_MESSAGES=5,MAX_BONUS=5;
 const displayedIds=new Set();
 let deletedForMe=new Set();
 const params=new URLSearchParams(window.location.search);
 otherUserId=params.get("user");
+
+/* ============ FILTRE ANTI-NUMÉROS ============ */
+function containsContactInfo(text){
+  if(!text) return false;
+  var t = text.toLowerCase();
+  t = t.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+
+  var keywords = [
+    "whatsapp","whats app","watsap","ouatsap","ouatsapp","watsapp",
+    "wa.me","whatsapp.com","telegram","snapchat","snap chat","instagram","insta",
+    "facebook","messenger","tiktok","signal","viber","skype",
+    "envoie ton numero","ton numero","mon numero",
+    "ajoute-moi","ajoutez-moi","appelle-moi","appelle moi","appellez-moi"
+  ];
+  for(var i=0;i<keywords.length;i++){
+    if(t.indexOf(keywords[i]) !== -1) return true;
+  }
+  if(/\+\s*\d[\d\s\-\.]{6,}/.test(t)) return true;
+  var seq = t.match(/\d[\d\s\-\.]{6,}\d/);
+  if(seq){
+    var clean = seq[0].replace(/[^\d]/g,"");
+    if(clean.length >= 8) return true;
+  }
+  var lettres = ["zero","un","deux","trois","quatre","cinq","six","sept","huit","neuf"];
+  var words = t.replace(/[\-\.\,]/g," ").split(/\s+/);
+  var streak = 0, maxStreak = 0;
+  for(var k=0;k<words.length;k++){
+    if(lettres.indexOf(words[k]) !== -1){ streak++; if(streak > maxStreak) maxStreak = streak; }
+    else { streak = 0; }
+  }
+  if(maxStreak >= 6) return true;
+  return false;
+}
+/* ============ FIN FILTRE ============ */
 
 function setStatus(t,ty){const b=document.getElementById("statusBar");b.textContent=t;b.className="text-[11px] text-center py-1 px-3 shrink-0 "+(ty==="ok"?"bg-emerald-100 text-emerald-800":ty==="err"?"bg-red-100 text-red-800":ty==="rec"?"bg-red-500 text-white font-bold":ty==="typing"?"bg-blue-100 text-blue-800":"bg-slate-200 text-slate-600");}
 function escapeHtml(s){return (s||"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -87,9 +127,9 @@ function updatePresenceDot(ls,is){const d=document.getElementById("onlineDot");c
 async function refreshOtherPresence(){const{data}=await supabaseClient.from("profiles").select("last_seen_at,is_seed").eq("id",otherUserId).single();if(data)updatePresenceDot(data.last_seen_at,data.is_seed);}
 async function updateMyPresence(){if(!currentUser)return;await supabaseClient.from("profiles").update({last_seen_at:new Date().toISOString()}).eq("id",currentUser.id);}
 
-/* ============ POLLING : récupérer les nouveaux messages toutes les 3 sec ============ */
 async function pollNewMessages(){
   if(!conversationId||!currentUser)return;
+  if(!iHaveUnlocked && (await countUserMessages())>=MAX_USER_MESSAGES)return;
   try{
     let query=supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true});
     if(lastMessageTime){query=query.gt("created_at",lastMessageTime);}
@@ -102,29 +142,80 @@ async function pollNewMessages(){
       if(deletedForMe.has(m.id))continue;
       await renderMessage(m);
       hasNew=true;
-      if(m.sender_id!==currentUser.id){
-        await supabaseClient.from("messages").update({is_read:true}).eq("id",m.id);
-      }
+      if(m.sender_id!==currentUser.id){await supabaseClient.from("messages").update({is_read:true}).eq("id",m.id);}
     }
     if(hasNew)refreshQuota();
-  }catch(e){/* silencieux */}
+  }catch(e){}
 }
 
 async function sendMirrorMessage(){if(limitMessageSent)return;limitMessageSent=true;const{data,error}=await supabaseClient.rpc("send_limit_message",{p_conversation_id:conversationId});if(error)return;if(data&&data.ok&&data.msg_id){const{data:msg}=await supabaseClient.from("messages").select("*").eq("id",data.msg_id).single();if(msg)await renderMessage(msg);}}
 
 async function refreshQuota(){
-  const uc=await countUserMessages(),oc=await countOtherMessages();
+  const uc=await countUserMessages();
+  const oc=await countOtherMessages();
+
   const{data:mu}=await supabaseClient.rpc("has_unlocked",{p_conversation_id:conversationId});
   iHaveUnlocked=mu===true;
+
   const{data:ul}=await supabaseClient.from("conversation_unlocks").select("user_id").eq("conversation_id",conversationId);
   otherHasUnlocked=(ul||[]).some(u=>u.user_id===otherUserId);
-  const q=document.getElementById("quota"),pw=document.getElementById("paywall"),lo=document.getElementById("lockedByOther"),co=document.getElementById("composer");
-  const iL=!iHaveUnlocked&&uc>=MAX_USER_MESSAGES,oL=!otherHasUnlocked&&oc>=MAX_USER_MESSAGES;
-  pw.classList.add("hidden");lo.classList.add("hidden");co.classList.remove("hidden");
-  if(iL){q.textContent="5/5";q.className="text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700";pw.classList.remove("hidden");co.classList.add("hidden");}
-  else if(oL){q.textContent="En attente";q.className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700";lo.classList.remove("hidden");co.classList.add("hidden");}
-  else if(iHaveUnlocked){q.textContent="Illimité ✓";q.className="text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700";}
-  else{const r=MAX_USER_MESSAGES-uc;q.textContent=r+" msg";q.className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700";}
+
+  const{data:conv}=await supabaseClient.from("conversations").select("bonus_messages").eq("id",conversationId).single();
+  bonusUsed=(conv&&conv.bonus_messages)?conv.bonus_messages:0;
+
+  const q=document.getElementById("quota");
+  const main=document.getElementById("messages");
+  const lockScreen=document.getElementById("lockScreen");
+  const composer=document.getElementById("composer");
+  const infoBanner=document.getElementById("infoBanner");
+  const infoBannerText=document.getElementById("infoBannerText");
+  const micBtn=document.getElementById("micBtn");
+
+  infoBanner.classList.add("hidden");
+
+  // CAS 1 : MOI je suis bloqué (j'ai atteint 5 sans payer) → ni écriture ni lecture
+  if(!iHaveUnlocked && uc>=MAX_USER_MESSAGES){
+    main.classList.add("hidden");
+    lockScreen.classList.remove("hidden");
+    composer.classList.add("hidden");
+    q.textContent="Bloqué";
+    q.className="text-[11px] px-2 py-1 rounded-full bg-red-50 text-red-700";
+    return;
+  }
+
+  // Sinon : afficher le chat normalement
+  main.classList.remove("hidden");
+  lockScreen.classList.add("hidden");
+  composer.classList.remove("hidden");
+
+  // CAS 2 : J'ai payé, l'autre non, et il a atteint sa limite
+  if(iHaveUnlocked && !otherHasUnlocked && oc>=MAX_USER_MESSAGES){
+    if(bonusUsed>=MAX_BONUS){
+      // Plus de bonus → je ne peux plus écrire
+      composer.classList.add("hidden");
+      infoBanner.classList.remove("hidden");
+      infoBannerText.textContent="⏸️ Votre interlocuteur doit débloquer pour que la conversation continue.";
+      q.textContent="En attente";
+      q.className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700";
+      return;
+    } else {
+      const restant=MAX_BONUS-bonusUsed;
+      infoBanner.classList.remove("hidden");
+      infoBannerText.textContent="⏳ Votre interlocuteur n'a pas débloqué. Il vous reste "+restant+" message"+(restant>1?"s":"")+" bonus.";
+    }
+  }
+
+  // Masquer le micro si je n'ai pas payé
+  if(iHaveUnlocked){
+    micBtn.style.display="";
+    q.textContent="Illimité ✓";
+    q.className="text-[11px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700";
+  } else {
+    micBtn.style.display="none";
+    const r=MAX_USER_MESSAGES-uc;
+    q.textContent=r+" msg";
+    q.className="text-[11px] px-2 py-1 rounded-full bg-amber-50 text-amber-700";
+  }
 }
 
 async function renderMessage(m,force=false){
@@ -137,8 +228,18 @@ async function renderMessage(m,force=false){
   const time=new Date(m.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
   let c="";
   if(m.content_type==="text"){c='<p class="whitespace-pre-wrap break-words">'+escapeHtml(m.text_body)+'</p>';}
-  else if(m.content_type==="image"){const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);c=u?'<img src="'+u+'" class="max-w-full rounded-lg">':'<p class="italic text-xs">[image]</p>';}
-  else if(m.content_type==="audio"){const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);c=u?'<audio controls src="'+u+'" style="width:220px"></audio>':'<p class="italic text-xs">[audio]</p>';}
+  else if(m.content_type==="image"){
+    const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);
+    c=u?'<img src="'+u+'" class="max-w-full rounded-lg">':'<p class="italic text-xs">[image]</p>';
+  }
+  else if(m.content_type==="audio"){
+    if(!iHaveUnlocked && !mine){
+      c='<div class="flex items-center gap-2 py-1 pr-2"><span class="text-lg">🔒</span><span class="text-xs italic opacity-80">Vocal verrouillé — débloquez</span></div>';
+    } else {
+      const u=m.content_url.startsWith("http")?m.content_url:await signedUrl(m.content_url);
+      c=u?'<audio controls src="'+u+'" style="width:220px"></audio>':'<p class="italic text-xs">[audio]</p>';
+    }
+  }
   const mb='<button onclick="event.stopPropagation();openMenu(\''+m.id+'\','+mine+');" class="absolute top-1 '+(mine?"left-1":"right-1")+' w-6 h-6 rounded-full bg-black/20 text-white text-xs flex items-center justify-center">⋮</button>';
   const html='<div class="flex '+(mine?"justify-end":"justify-start")+'" data-msg-id="'+m.id+'"><div class="relative max-w-[80%] px-3 py-2 rounded-2xl text-sm '+(mine?"bg-emerald-600 text-white rounded-br-md":"bg-white text-slate-800 rounded-bl-md shadow-sm")+'">'+mb+'<div class="pr-5 pl-1">'+c+'<p class="text-[10px] mt-1 '+(mine?"text-emerald-100":"text-slate-400")+'">'+time+'</p></div></div></div>';
   document.getElementById("messages").insertAdjacentHTML("beforeend",html);
@@ -151,7 +252,22 @@ function deleteForMe(){if(!selectedMsg)return;deletedForMe.add(selectedMsg);save
 async function deleteForEveryone(){if(!selectedMsg)return;if(!confirm("Supprimer pour TOUT LE MONDE ?"))return;const{error}=await supabaseClient.from("messages").delete().eq("id",selectedMsg);if(error){setStatus("❌ "+error.message,"err");closeMenu();return;}const el=document.querySelector('[data-msg-id="'+selectedMsg+'"]');if(el)el.remove();closeMenu();setStatus("🗑️ Supprimé","ok");setTimeout(()=>setStatus("Prêt","info"),2000);}
 
 async function markAllAsRead(){await supabaseClient.from("messages").update({is_read:true}).eq("conversation_id",conversationId).neq("sender_id",currentUser.id).eq("is_read",false);}
-async function insertMessage(payload){const{data,error}=await supabaseClient.from("messages").insert({conversation_id:conversationId,sender_id:currentUser.id,...payload}).select().single();if(error){setStatus("❌ "+error.message,"err");return null;}await renderMessage(data);return data;}
+
+async function insertMessage(payload){
+  const{data,error}=await supabaseClient.from("messages").insert({conversation_id:conversationId,sender_id:currentUser.id,...payload}).select().single();
+  if(error){
+    if(error.message.indexOf("QUOTA_SENDER_LIMIT")!==-1){
+      setStatus("⛔ Vous avez atteint votre limite gratuite","err");
+    } else if(error.message.indexOf("QUOTA_OTHER_LOCKED")!==-1){
+      setStatus("⛔ Votre interlocuteur doit débloquer pour que vous puissiez continuer","err");
+    } else {
+      setStatus("❌ "+error.message,"err");
+    }
+    return null;
+  }
+  await renderMessage(data);
+  return data;
+}
 
 async function init(){
   const{data:{user}}=await supabaseClient.auth.getUser();
@@ -160,28 +276,32 @@ async function init(){
   loadDeletedForMe();
   if(!otherUserId){setStatus("❌ Utilisateur non précisé","err");return;}
   const{data:other}=await supabaseClient.from("profiles").select("*").eq("id",otherUserId).single();
-  if(other){otherUserData=other;otherUserName=other.username||"Utilisateur";isSeedProfile=false;document.getElementById("otherName").textContent=otherUserName;document.getElementById("otherInfo").textContent=(other.city||"")+(other.country?", "+other.country:"");updatePresenceDot(other.last_seen_at,other.is_seed);}
+  if(other){otherUserData=other;otherUserName=other.username||"Utilisateur";document.getElementById("otherName").textContent=otherUserName;document.getElementById("otherInfo").textContent=(other.city||"")+(other.country?", "+other.country:"");updatePresenceDot(other.last_seen_at,other.is_seed);}
   const{data:convId,error:rpcErr}=await supabaseClient.rpc("get_or_create_conversation",{p_other_user:otherUserId});
   if(rpcErr){setStatus("❌ "+rpcErr.message,"err");return;}
   conversationId=convId;
-  const{data:msgs}=await supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true}).limit(200);
-  document.getElementById("messages").innerHTML="";
-  if(!msgs||!msgs.length){document.getElementById("messages").innerHTML='<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';}
-  else{
-    for(const m of msgs)await renderMessage(m);
-    lastMessageTime=msgs[msgs.length-1].created_at;
+
+  await refreshQuota();
+  const uc=await countUserMessages();
+  const{data:mu}=await supabaseClient.rpc("has_unlocked",{p_conversation_id:conversationId});
+  iHaveUnlocked=mu===true;
+
+  // Ne charger les messages QUE si je ne suis pas bloqué
+  if(iHaveUnlocked || uc<MAX_USER_MESSAGES){
+    const{data:msgs}=await supabaseClient.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true}).limit(200);
+    document.getElementById("messages").innerHTML="";
+    if(!msgs||!msgs.length){document.getElementById("messages").innerHTML='<p class="text-center text-slate-400 text-sm py-8" id="emptyMsg">Salam aleykoum 👋<br>Commencez par un message.</p>';}
+    else{for(const m of msgs)await renderMessage(m);lastMessageTime=msgs[msgs.length-1].created_at;}
+    await markAllAsRead();
   }
-  await markAllAsRead();
+
   await refreshQuota();
   await updateMyPresence();
   await refreshOtherPresence();
 
   presenceInterval=setInterval(async()=>{await updateMyPresence();await refreshOtherPresence();await refreshQuota();},15000);
-
-  /* DÉMARRER LE POLLING : toutes les 3 secondes */
   pollingInterval=setInterval(pollNewMessages,3000);
 
-  /* Essayer aussi le temps réel (au cas où ça marcherait) */
   try{channel=supabaseClient.channel("conv:"+conversationId).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+conversationId},async(payload)=>{if(displayedIds.has(payload.new.id))return;await renderMessage(payload.new);if(payload.new.sender_id!==currentUser.id){await supabaseClient.from("messages").update({is_read:true}).eq("id",payload.new.id);}refreshQuota();}).subscribe();}catch(e){}
   setStatus("Prêt","info");
 }
@@ -190,12 +310,19 @@ async function sendMessage(){
   const input=document.getElementById("input");
   const text=input.value.trim();
   if(!text)return;
+
+  if(containsContactInfo(text)){
+    setStatus("⛔ Numéros / contacts externes non autorisés","err");
+    return;
+  }
+
   input.value="";
   const r=await insertMessage({content_type:"text",text_body:text});
-  if(!r)return;
+  if(!r){refreshQuota();return;}
   setStatus("✅ Envoyé","ok");
+  await refreshQuota();
   const uc=await countUserMessages();
-  if(uc>=MAX_USER_MESSAGES&&!iHaveUnlocked){if(!limitMessageSent)await sendMirrorMessage();await refreshQuota();}
+  if(uc>=MAX_USER_MESSAGES&&!iHaveUnlocked){if(!limitMessageSent)await sendMirrorMessage();}
   setTimeout(()=>setStatus("Prêt","info"),1500);
 }
 
@@ -216,11 +343,13 @@ document.getElementById("fileInput").addEventListener("change",async(e)=>{
     if(upErr)throw upErr;
     const r=await insertMessage({content_type:"image",content_url:path});
     if(r)setStatus("✅ Photo envoyée","ok");
+    await refreshQuota();
   }catch(err){setStatus("❌ "+err.message,"err");}
   finally{e.target.value="";}
 });
 
 document.getElementById("micBtn").addEventListener("click",async()=>{
+  if(!iHaveUnlocked){setStatus("⛔ Vocaux réservés aux comptes débloqués","err");return;}
   if(isRecording){try{mediaRecorder.stop();}catch(e){}return;}
   try{
     setStatus("🎤 Micro…","info");
@@ -247,6 +376,7 @@ document.getElementById("micBtn").addEventListener("click",async()=>{
         if(upErr)throw upErr;
         const r=await insertMessage({content_type:"audio",content_url:path});
         if(r)setStatus("✅ Vocal envoyé","ok");
+        await refreshQuota();
       }catch(err){setStatus("❌ "+err.message,"err");}
     };
     mediaRecorder.start();
