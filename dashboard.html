@@ -26,7 +26,6 @@
     <h1 class="text-xl font-bold text-slate-800 mb-1">Salam aleykoum 👋</h1>
     <p class="text-sm text-slate-500 mb-6" id="welcome">Chargement…</p>
 
-    <!-- PHOTO PRINCIPALE -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
       <h2 class="font-bold text-lg mb-4">Ma photo principale</h2>
       <div class="flex items-center gap-4">
@@ -45,7 +44,6 @@
       <div id="avatarMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
     </div>
 
-    <!-- PHOTOS SECONDAIRES -->
     <div class="bg-white rounded-2xl shadow p-5 mb-4">
       <h2 class="font-bold text-lg mb-2">Mes 3 photos supplémentaires</h2>
       <p class="text-xs text-slate-500 mb-4">Aide les autres à mieux te connaître (2 à 3 photos recommandées).</p>
@@ -67,7 +65,6 @@
       <div id="extraMessage" class="hidden mt-3 p-2 rounded-lg text-xs text-center"></div>
     </div>
 
-    <!-- FORMULAIRE PROFIL -->
     <form id="profileForm" class="bg-white rounded-2xl shadow p-5 space-y-4">
       <h2 class="font-bold text-lg">Mon profil</h2>
 
@@ -75,10 +72,34 @@
         <label class="block text-sm font-medium mb-1">Pseudo</label>
         <input type="text" id="username" required class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
       </div>
+
       <div>
         <label class="block text-sm font-medium mb-1">Date de naissance</label>
-        <input type="date" id="birth_date" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none">
+        <div class="grid grid-cols-3 gap-2">
+          <select id="birth_day" class="px-2 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm">
+            <option value="">Jour</option>
+          </select>
+          <select id="birth_month" class="px-2 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm">
+            <option value="">Mois</option>
+            <option value="1">Janvier</option>
+            <option value="2">Février</option>
+            <option value="3">Mars</option>
+            <option value="4">Avril</option>
+            <option value="5">Mai</option>
+            <option value="6">Juin</option>
+            <option value="7">Juillet</option>
+            <option value="8">Août</option>
+            <option value="9">Septembre</option>
+            <option value="10">Octobre</option>
+            <option value="11">Novembre</option>
+            <option value="12">Décembre</option>
+          </select>
+          <select id="birth_year" class="px-2 py-2 border border-slate-300 rounded-lg outline-none bg-white text-sm">
+            <option value="">Année</option>
+          </select>
+        </div>
       </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-sm font-medium mb-1">Pays</label>
@@ -166,7 +187,6 @@
 
     <div id="message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
 
-    <!-- ZONE DANGER : suppression de compte -->
     <div class="bg-white rounded-2xl shadow p-5 mt-6 border border-red-200">
       <h2 class="font-bold text-lg text-red-700 mb-2">Zone sensible</h2>
       <p class="text-xs text-slate-500 mb-4">
@@ -188,6 +208,27 @@
     let currentGender = 'male';
     let currentAvatarUrl = null;
     let currentExtraPhotos = [];
+
+    (function fillDays() {
+      const sel = document.getElementById('birth_day');
+      for (let i = 1; i <= 31; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = i;
+        sel.appendChild(opt);
+      }
+    })();
+
+    (function fillYears() {
+      const sel = document.getElementById('birth_year');
+      const currentYear = new Date().getFullYear();
+      for (let y = currentYear - 16; y >= 1920; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        sel.appendChild(opt);
+      }
+    })();
 
     function show(t, c) {
       msg.textContent = t;
@@ -275,13 +316,10 @@
       window.location.href = 'index.html';
     }
 
-    // ============ SUPPRESSION DE COMPTE ============
     async function deleteAccount() {
-      // Étape 1 : première confirmation
       const ok1 = confirm("⚠️ ATTENTION\n\nVous allez supprimer DÉFINITIVEMENT votre compte.\n\nCela effacera :\n- Votre profil\n- Vos photos\n- Vos messages\n- Vos conversations\n\nCette action est IRRÉVERSIBLE.\n\nContinuer ?");
       if (!ok1) return;
 
-      // Étape 2 : confirmation par écrit
       const saisie = prompt("Pour confirmer, tapez SUPPRIMER en majuscules :");
       if (saisie !== "SUPPRIMER") {
         alert("Annulé. Vous devez taper SUPPRIMER exactement.");
@@ -289,7 +327,6 @@
       }
 
       try {
-        // 1. Supprimer les photos du storage
         const { data: profile } = await supabaseClient.from('profiles').select('avatar_url, extra_photos').eq('id', currentUser.id).single();
         if (profile) {
           const pathsToDelete = [];
@@ -308,14 +345,12 @@
           }
         }
 
-        // 2. Appeler la fonction SQL qui supprime tout le reste
         const { error: rpcErr } = await supabaseClient.rpc('delete_my_account');
         if (rpcErr) {
           alert("❌ Erreur : " + rpcErr.message + "\n\nContactez l'administrateur.");
           return;
         }
 
-        // 3. Déconnexion
         await supabaseClient.auth.signOut();
         alert("✅ Votre compte a été supprimé.\n\nNous sommes désolés de vous voir partir. Qu'Allah vous facilite.");
         window.location.href = 'index.html';
@@ -353,7 +388,14 @@
         currentAvatarUrl = p.avatar_url;
         currentExtraPhotos = Array.isArray(p.extra_photos) ? p.extra_photos : [];
         document.getElementById('username').value = p.username || '';
-        document.getElementById('birth_date').value = p.birth_date || '';
+
+        if (p.birth_date) {
+          const parts = p.birth_date.split('-');
+          if (parts[0]) document.getElementById('birth_year').value = parseInt(parts[0]);
+          if (parts[1]) document.getElementById('birth_month').value = parseInt(parts[1]);
+          if (parts[2]) document.getElementById('birth_day').value = parseInt(parts[2]);
+        }
+
         document.getElementById('country').value = p.country || '';
         document.getElementById('city').value = p.city || '';
         document.getElementById('religiosity_level').value = p.religiosity_level || '';
@@ -378,14 +420,26 @@
     document.getElementById('profileForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!currentUser) return;
+
       const hasChildren = document.getElementById('has_children').value === 'true';
+
+      const day = document.getElementById('birth_day').value;
+      const month = document.getElementById('birth_month').value;
+      const year = document.getElementById('birth_year').value;
+      let birthDate = null;
+      if (day && month && year) {
+        const dd = String(day).padStart(2, '0');
+        const mm = String(month).padStart(2, '0');
+        birthDate = year + '-' + mm + '-' + dd;
+      }
+
       const data = {
         id: currentUser.id,
         username: document.getElementById('username').value.trim(),
         gender: currentGender,
         avatar_url: currentAvatarUrl,
         extra_photos: currentExtraPhotos.filter(Boolean),
-        birth_date: document.getElementById('birth_date').value || null,
+        birth_date: birthDate,
         country: document.getElementById('country').value.trim() || null,
         city: document.getElementById('city').value.trim() || null,
         religiosity_level: document.getElementById('religiosity_level').value || null,
